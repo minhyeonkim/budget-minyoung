@@ -49,6 +49,8 @@
     max-width:1400px;
     margin:0 auto;
     padding:clamp(14px,3vw,32px);
+    padding-left:max(clamp(14px,3vw,32px), env(safe-area-inset-left));
+    padding-right:max(clamp(14px,3vw,32px), env(safe-area-inset-right));
     padding-bottom:max(clamp(14px,3vw,32px), env(safe-area-inset-bottom));
     gap:16px;
   }
@@ -100,8 +102,10 @@
     color:var(--accent);
   }
 
-  .view{display:none; flex-direction:column; gap:16px;}
+  .view{display:none; flex-direction:column; gap:16px; min-width:0;}
   .view.active{display:flex;}
+  .app > *{min-width:0;}
+  .view.active > *{min-width:0;}
 
   .card{
     background:var(--surface);
@@ -166,6 +170,7 @@
   }
   input:focus, select:focus{outline:1px solid var(--accent);}
 
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -2px;}
   table{width:100%; border-collapse:collapse; font-size:14px;}
   th{
     text-align:left;
@@ -250,8 +255,24 @@
     grid-template-columns:1fr 1fr;
     gap:24px;
   }
+  .two-col-grid > *{min-width:0;}
   @media (max-width:760px){
     .two-col-grid{grid-template-columns:1fr;}
+  }
+
+  @media (max-width:640px){
+    .app{padding:12px; padding-left:max(12px, env(safe-area-inset-left)); padding-right:max(12px, env(safe-area-inset-right)); gap:12px;}
+    .card{padding:14px;}
+    .month-nav{margin:-14px -14px 12px; padding:10px 14px;}
+    input, select{font-size:16px;}
+    td input.money-input.inline-amount, td input.day-input, td input.name-input{font-size:16px;}
+    td input.money-input.inline-amount{max-width:110px;}
+    .subtabs{flex-wrap:wrap;}
+    nav.tabs button{padding:9px 8px; font-size:13px;}
+    table{min-width:540px;}
+    .modal-overlay{padding:10px;}
+    .modal-box{padding:16px;}
+    .field{min-width:120px;}
   }
 
   .section-head{
@@ -384,10 +405,10 @@
         </div>
 
         <div id="cards-edit-panel" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
-          <table>
+          <div class="table-scroll"><table>
             <thead><tr><th>카드명</th><th>결제계좌</th><th></th></tr></thead>
             <tbody id="cards-edit-body"></tbody>
-          </table>
+          </table></div>
           <div class="field-row" style="margin-top:10px;">
             <div class="field"><label>카드명</label><input type="text" id="new-card-name" placeholder="예: 신용카드(삼성)"></div>
             <div class="field"><label>결제계좌</label>
@@ -405,7 +426,7 @@
               <h2>기업은행 고정금</h2>
               <button class="icon-btn" id="add-giup-btn-calc">+ 추가</button>
             </div>
-            <table>
+            <div class="table-scroll"><table>
               <thead>
                 <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
               </thead>
@@ -413,7 +434,7 @@
               <tfoot>
                 <tr class="total-row"><td colspan="4">기업은행 고정금 합계</td><td class="num" id="fixed-giup-total">0</td><td></td></tr>
               </tfoot>
-            </table>
+            </table></div>
           </div>
 
           <div>
@@ -421,7 +442,7 @@
               <h2>농협은행 고정금</h2>
               <button class="icon-btn" id="add-nh-btn-calc">+ 추가</button>
             </div>
-            <table>
+            <div class="table-scroll"><table>
               <thead>
                 <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
               </thead>
@@ -429,13 +450,13 @@
               <tfoot>
                 <tr class="total-row"><td colspan="4">농협은행 고정금 합계</td><td class="num" id="fixed-nh-total">0</td><td></td></tr>
               </tfoot>
-            </table>
+            </table></div>
           </div>
         </div>
 
         <!-- 항목 추가 모달로만 열리는 입력폼 (숨김) -->
         <div id="giup-add-content" style="display:none;">
-          <table>
+          <div class="table-scroll"><table>
             <thead>
               <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
             </thead>
@@ -443,7 +464,7 @@
             <tfoot>
               <tr class="total-row"><td colspan="4">기업은행 고정금 합계</td><td class="num" id="modal-giup-total">0</td><td></td></tr>
             </tfoot>
-          </table>
+          </table></div>
           <div class="field-row" style="margin-top:14px;">
             <div class="field"><label>항목명</label><input type="text" id="new-giup-name" placeholder="예: 대출"></div>
             <div class="field" style="max-width:80px;"><label>이체일</label><input type="text" inputmode="numeric" id="new-giup-day" placeholder="예: 20" maxlength="2"></div>
@@ -455,7 +476,7 @@
         </div>
 
         <div id="nh-add-content" style="display:none;">
-          <table>
+          <div class="table-scroll"><table>
             <thead>
               <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
             </thead>
@@ -463,7 +484,7 @@
             <tfoot>
               <tr class="total-row"><td colspan="4">농협은행 고정금 합계</td><td class="num" id="modal-nh-total">0</td><td></td></tr>
             </tfoot>
-          </table>
+          </table></div>
           <div class="field-row" style="margin-top:14px;">
             <div class="field"><label>항목명</label><input type="text" id="new-nh-name" placeholder="예: 종합보험"></div>
             <div class="field" style="max-width:80px;"><label>이체일</label><input type="text" inputmode="numeric" id="new-nh-day" placeholder="예: 15" maxlength="2"></div>
@@ -502,7 +523,7 @@
                 <h2>고정금(현금) — 기업은행</h2>
                 <button class="icon-btn" id="add-giup-btn-analysis">+ 추가</button>
               </div>
-              <table>
+              <div class="table-scroll"><table>
                 <thead>
                   <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
                 </thead>
@@ -510,14 +531,14 @@
                 <tfoot>
                   <tr class="total-row"><td colspan="4">기업은행 고정금 합계</td><td class="num" id="af-fixed-giup-total">0</td><td></td></tr>
                 </tfoot>
-              </table>
+              </table></div>
             </div>
             <div>
               <div class="section-head">
                 <h2>고정금(현금) — 농협은행</h2>
                 <button class="icon-btn" id="add-nh-btn-analysis">+ 추가</button>
               </div>
-              <table>
+              <div class="table-scroll"><table>
                 <thead>
                   <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
                 </thead>
@@ -525,7 +546,7 @@
                 <tfoot>
                   <tr class="total-row"><td colspan="4">농협은행 고정금 합계</td><td class="num" id="af-fixed-nh-total">0</td><td></td></tr>
                 </tfoot>
-              </table>
+              </table></div>
             </div>
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급계산" 탭의 기업/농협 고정금과 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
@@ -536,7 +557,7 @@
                 <h2>고정금(카드) — KB카드</h2>
                 <button class="icon-btn" id="add-kb-btn-open">+ 추가</button>
               </div>
-              <table>
+              <div class="table-scroll"><table>
                 <thead>
                   <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
                 </thead>
@@ -544,14 +565,14 @@
                 <tfoot>
                   <tr class="total-row"><td colspan="4">KB카드 고정금 합계</td><td class="num" id="card-fixed-kb-total">0</td><td></td></tr>
                 </tfoot>
-              </table>
+              </table></div>
             </div>
             <div>
               <div class="section-head">
                 <h2>고정금(카드) — 현대카드</h2>
                 <button class="icon-btn" id="add-hyundai-btn-open">+ 추가</button>
               </div>
-              <table>
+              <div class="table-scroll"><table>
                 <thead>
                   <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
                 </thead>
@@ -559,7 +580,7 @@
                 <tfoot>
                   <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="card-fixed-hyundai-total">0</td><td></td></tr>
                 </tfoot>
-              </table>
+              </table></div>
             </div>
           </div>
 
@@ -567,7 +588,7 @@
             <h2>카드 할부</h2>
             <button class="icon-btn" id="add-inst-btn-open">+ 추가</button>
           </div>
-          <table>
+          <div class="table-scroll"><table>
             <thead>
               <tr><th></th><th></th><th>항목</th><th class="num">월 납입액</th><th class="num">회차</th><th></th></tr>
             </thead>
@@ -575,10 +596,10 @@
             <tfoot>
               <tr class="total-row"><td colspan="4">할부 합계 (진행중)</td><td class="num" id="installments-total">0</td><td></td></tr>
             </tfoot>
-          </table>
+          </table></div>
 
           <div id="kb-add-content" style="display:none;">
-            <table>
+            <div class="table-scroll"><table>
               <thead>
                 <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
               </thead>
@@ -586,7 +607,7 @@
               <tfoot>
                 <tr class="total-row"><td colspan="4">KB카드 고정금 합계</td><td class="num" id="modal-kb-total">0</td><td></td></tr>
               </tfoot>
-            </table>
+            </table></div>
             <div class="field-row" style="margin-top:14px;">
               <div class="field"><label>항목명</label><input type="text" id="new-kb-name" placeholder="예: 집 관리비"></div>
               <div class="field" style="max-width:80px;"><label>이체일</label><input type="text" inputmode="numeric" id="new-kb-day" placeholder="예: 25" maxlength="2"></div>
@@ -598,7 +619,7 @@
           </div>
 
           <div id="hyundai-add-content" style="display:none;">
-            <table>
+            <div class="table-scroll"><table>
               <thead>
                 <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
               </thead>
@@ -606,7 +627,7 @@
               <tfoot>
                 <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="modal-hyundai-total">0</td><td></td></tr>
               </tfoot>
-            </table>
+            </table></div>
             <div class="field-row" style="margin-top:14px;">
               <div class="field"><label>항목명</label><input type="text" id="new-hyundai-name" placeholder="예: 유튜브"></div>
               <div class="field" style="max-width:80px;"><label>이체일</label><input type="text" inputmode="numeric" id="new-hyundai-day" placeholder="예: 5" maxlength="2"></div>
@@ -618,7 +639,7 @@
           </div>
 
           <div id="inst-add-content" style="display:none;">
-            <table>
+            <div class="table-scroll"><table>
               <thead>
                 <tr><th></th><th></th><th>항목</th><th class="num">월 납입액</th><th class="num">회차</th><th></th></tr>
               </thead>
@@ -626,7 +647,7 @@
               <tfoot>
                 <tr class="total-row"><td colspan="4">할부 합계 (진행중)</td><td class="num" id="modal-inst-total">0</td><td></td></tr>
               </tfoot>
-            </table>
+            </table></div>
             <div class="field-row" style="margin-top:14px;">
               <div class="field"><label>항목명</label><input type="text" id="new-inst-name" placeholder="예: 자동차보험"></div>
               <div class="field"><label>월 납입액</label><input type="text" inputmode="numeric" class="money-input" id="new-inst-amount" placeholder="예: 60,200"></div>
@@ -681,10 +702,10 @@
         </div>
 
         <div id="my-cards-edit-panel" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
-          <table>
+          <div class="table-scroll"><table>
             <thead><tr><th>카드명</th><th></th></tr></thead>
             <tbody id="my-cards-edit-body"></tbody>
-          </table>
+          </table></div>
           <div class="field-row" style="margin-top:10px;">
             <div class="field"><label>카드명</label><input type="text" id="new-my-card-name" placeholder="예: 신용카드(삼성)"></div>
             <div class="field" style="flex:0; align-self:flex-end;">
@@ -697,7 +718,7 @@
           <h2>고정비 / 차감 항목</h2>
           <button class="icon-btn" id="add-item-btn-open">+ 추가</button>
         </div>
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr>
           </thead>
@@ -705,10 +726,10 @@
           <tfoot>
             <tr class="total-row"><td colspan="3">고정비 합계</td><td class="num" id="fixed-total">0</td><td colspan="2"></td><td></td></tr>
           </tfoot>
-        </table>
+        </table></div>
 
         <div id="minyoung-add-content" style="display:none;">
-          <table>
+          <div class="table-scroll"><table>
             <thead>
               <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr>
             </thead>
@@ -716,7 +737,7 @@
             <tfoot>
               <tr class="total-row"><td colspan="3">고정비 합계</td><td class="num" id="modal-minyoung-total">0</td><td colspan="2"></td><td></td></tr>
             </tfoot>
-          </table>
+          </table></div>
           <div class="field-row" style="margin-top:14px;">
             <div class="field"><label>항목명</label><input type="text" id="new-item-name" placeholder="예: 보험"></div>
             <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="new-item-amount" placeholder="예: 100,000"></div>
@@ -801,7 +822,7 @@
 
     <div class="card">
       <h2>대출 현황 (마이너스통장 등)</h2>
-      <table>
+      <div class="table-scroll"><table>
         <thead>
           <tr><th>담당</th><th>항목명</th><th class="num">한도</th><th class="num">사용액</th><th class="num">잔액</th><th></th></tr>
         </thead>
@@ -809,7 +830,7 @@
         <tfoot>
           <tr class="total-row"><td colspan="2">합계</td><td class="num" id="loan-limit-total">0</td><td class="num" id="loan-used-total">0</td><td class="num" id="loan-balance-total">0</td><td></td></tr>
         </tfoot>
-      </table>
+      </table></div>
       <div class="field-row" style="margin-top:10px;">
         <div class="field"><label>담당</label>
           <select id="loan-owner"><option value="민현">민현</option><option value="민영">민영</option><option value="공동">공동</option></select>
@@ -825,7 +846,7 @@
 
     <div class="card">
       <h2>적금 현황</h2>
-      <table>
+      <div class="table-scroll"><table>
         <thead>
           <tr><th>담당</th><th>항목명</th><th class="num">금액</th><th></th></tr>
         </thead>
@@ -833,7 +854,7 @@
         <tfoot>
           <tr class="total-row"><td colspan="2">합계</td><td class="num" id="saving-total">0</td><td></td></tr>
         </tfoot>
-      </table>
+      </table></div>
       <div class="field-row" style="margin-top:10px;">
         <div class="field"><label>담당</label>
           <select id="saving-owner"><option value="민현">민현</option><option value="민영">민영</option><option value="공동">공동</option></select>
@@ -1875,7 +1896,7 @@ document.getElementById("save-salary-btn").addEventListener("click", function(){
   }).join("");
   var html =
     '<p style="margin:0 0 14px; color:var(--text-dim); font-size:13px;">방금 수정한 금액이 ' + relevantIds.length + '건 있습니다. 항목마다 반영 범위를 선택해주세요.</p>' +
-    '<table><thead><tr><th>항목</th><th class="num">변경 내용</th><th>반영 범위</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
+    '<div class="table-scroll"><table><thead><tr><th>항목</th><th class="num">변경 내용</th><th>반영 범위</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
     '<div style="text-align:right; margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">' +
       '<button class="ghost" id="confirm-save-cancel">취소</button>' +
       '<button class="primary" id="confirm-save-apply">저장</button>' +

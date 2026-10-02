@@ -1,6 +1,12 @@
-# 말랑 가계부
+# 민현민영
 
 민현/민영 두 사람의 월급 자동 배분 계산과 공동 자산(대출/적금) 현황을 관리하는 개인용 웹앱입니다. (엑셀로 관리하던 `월급계산(신혼).xlsx`를 대체하는 1단계 버전)
+
+## 접속 링크
+
+https://minhyeonkim.github.io/budget-minyoung/
+
+(GitHub Pages로 배포됨. 어디서든 위 링크로 접속해 수정하면 실시간으로 Firestore에 저장되고, 다른 기기에서도 같은 내용을 바로 볼 수 있습니다. 모바일 화면에도 맞춰져 있습니다.)
 
 ## 구조
 
@@ -72,9 +78,12 @@ service cloud.firestore {
 
 ## 배포 방법 (GitHub Pages)
 
-1. 이 폴더를 개인 GitHub 저장소에 push 합니다.
+1. 이 폴더를 개인 GitHub 저장소에 push 합니다. (현재: `minhyeonkim/budget-minyoung`, public)
 2. 저장소 설정(Settings) → Pages → Source에서 `main` 브랜치, 루트(`/`) 선택 후 저장합니다.
 3. 몇 분 후 `https://<깃허브아이디>.github.io/<저장소이름>/` 주소로 접속 가능합니다.
+4. Firebase 프로젝트가 `malang-calendar-personal`(`calendar-minyoung`)과 동일해서, 그쪽에서 이미 `minhyeonkim.github.io` 도메인이 Firebase Auth 승인된 도메인 목록에 등록되어 있어 별도 설정 없이 바로 익명 로그인이 됩니다.
+
+공개 저장소이므로 실제 금액/계좌번호 등은 절대 코드에 하드코딩하지 않습니다 (모두 Firestore에만 저장).
 
 ## 나중에 할 수 있는 것
 
