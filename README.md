@@ -6,7 +6,7 @@
 
 https://minhyeonkim.github.io/budget-minyoung/
 
-(GitHub Pages로 배포됨. **현재는 임시로 예전과 같은 익명 로그인 모드**라 링크만 열면 바로 쓸 수 있습니다 — 아래 "보안 설정 절차"를 마치면 승인된 Google 계정만 쓰도록 바꿉니다. 모바일 화면에도 맞춰져 있습니다. 저장 방식은 아래 "저장 방식"을 참고하세요 — 월급·고정비는 **저장 버튼을 눌러야** 서버에 반영됩니다.)
+(GitHub Pages로 배포됨. 승인된 Google 계정(`budget_members`에 등록된 계정)으로 로그인해야 볼 수 있습니다. 모바일 화면에도 맞춰져 있습니다. 저장 방식은 아래 "저장 방식"을 참고하세요 — 월급·고정비는 **저장 버튼을 눌러야** 서버에 반영됩니다.)
 
 ## 저장 방식
 
@@ -27,7 +27,7 @@ https://minhyeonkim.github.io/budget-minyoung/
 
 - `index.html` 파일 하나로 동작하는 정적 웹페이지입니다. 별도 서버/빌드 과정이 없습니다.
 - Firebase 프로젝트: `calendar-minyoung` ([malang-calendar-personal](../malang-calendar-personal)과 동일 프로젝트를 공유하되, 컬렉션을 분리해서 사용)
-- 로그인 방식은 `index.html`의 `AUTH_MODE`로 정합니다. 현재 값은 `"anonymous"`(임시, 예전과 같은 익명 로그인 — **링크만 알면 누구나 볼 수 있어 보안 없음**). 보안 설정을 마친 뒤 `"member"`로 바꿔 배포하면:
+- 로그인 방식은 `index.html`의 `AUTH_MODE`로 정합니다. 현재 값은 `"member"`. (`"anonymous"`는 콘솔 설정 전 임시로 쓰던 예전 방식의 익명 로그인 — 링크만 알면 누구나 볼 수 있어 보안 없음.) `"member"`일 때:
 - Google 계정으로 로그인하고, `budget_members/{uid}` 에 등록된(승인된) 계정만 데이터를 보고 수정할 수 있습니다. 승인 확인 전에는 금융정보를 표시하거나 구독하지 않습니다. (예전 버전의 익명 로그인은 더 이상 쓰지 않습니다.)
 - **실제 보호는 Firestore 보안 규칙(`firestore.rules`)이 합니다.** 화면에서 막는 것만으로는 보안이 되지 않으므로, 아래 "보안 설정 절차"대로 규칙을 콘솔에 적용해야 합니다.
 
