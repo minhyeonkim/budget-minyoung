@@ -1173,7 +1173,7 @@ var MEMBER_COL = "budget_members"; // 승인된 계정 목록 (문서 ID = Fireb
    - "anonymous": 예전과 같은 익명 로그인 (Firebase 콘솔 설정 전 임시 사용. 링크만 알면 누구나 열 수 있어 보안 없음)
    - "member"   : Google 로그인 + budget_members 승인 계정만 사용 (README "보안 설정 절차" 완료 후 이 값으로 바꿔서 배포)
    로컬 테스트(?emulator)에서는 기본 "member", 주소에 &auth=anonymous 를 붙이면 익명 모드. */
-var AUTH_MODE = "member";
+var AUTH_MODE = "anonymous";
 if(USE_EMULATOR){
   AUTH_MODE = /[?&]auth=anonymous(&|$)/.test(location.search) ? "anonymous" : "member";
 }
