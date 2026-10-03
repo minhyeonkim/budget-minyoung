@@ -722,7 +722,7 @@
                   <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="card-fixed-hyundai-total">0</td><td></td><td></td></tr>
                 </tfoot>
               </table></div>
-              <div class="hint" style="margin-top:6px;">오른쪽 <strong>자동</strong>에 체크한 항목은 금액이 자동 계산돼요: 월급분배의 현대카드 사용금액 − 나머지 현대카드 고정금 합계 (체크 해제하면 직접 입력)</div>
+              <div class="hint" style="margin-top:6px;"><strong>기타(당월 사용금액)</strong>의 <strong>자동</strong>에 체크하면 금액이 자동 계산돼요: 월급분배의 현대카드 사용금액 − 나머지 현대카드 고정금 합계 (체크 해제하면 직접 입력)</div>
             </div>
           </div>
 
@@ -1571,8 +1571,14 @@ function setItemEnabled(p, listKey, id, enabled){
   }
   requestRender();
 }
+// 자동 체크는 현대카드의 "기타(당월 사용금액)" 항목에만 표시
+function isAutoEligible(item){
+  return !!item.auto || /기타/.test(item.name || "");
+}
 function setItemAuto(p, listKey, id, on){
   if(!canEdit(p)) return;
+  var target = findItem(p, listKey, id);
+  if(!target || (on && !isAutoEligible(target))) return;
   getFixedList(p, listKey).forEach(function(x){
     if(x.id === id){
       if(on) x.auto = true; else delete x.auto;
@@ -1909,7 +1915,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         : "") +
       (showAccount ? "" : amountCellHtml) +
       extraCells(options && options.afterAmount) +
-      (options && options.autoToggle ? '<td class="auto-cell"><label><input type="checkbox" class="auto-check"> 자동</label></td>' : "") +
+      (options && options.autoToggle ? '<td class="auto-cell">' + (isAutoEligible(item) ? '<label><input type="checkbox" class="auto-check"> 자동</label>' : "") + '</td>' : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
     function bind(el, field){
       el.dataset.bind = bindBase + field;

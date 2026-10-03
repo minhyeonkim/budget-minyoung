@@ -286,6 +286,19 @@ try {
   await page.click("#save-salary-btn");
   await waitSaved(page);
   const fxH = (await read("minhyun_fixed")).cardFixedHyundai;
+  const onlyEtc = await page.evaluate(() => ({
+    h1: !!document.querySelector('#card-fixed-hyundai-body tr[data-row$="|h1"] input.auto-check'),
+    h2: !!document.querySelector('#card-fixed-hyundai-body tr[data-row$="|h2"] input.auto-check'),
+    kb: !!document.querySelector('#card-fixed-kb-body input.auto-check')
+  }));
+  check("자동 체크는 '기타' 줄에만 있고 다른 줄·다른 카드에는 없음", !onlyEtc.h1 && onlyEtc.h2 && !onlyEtc.kb, onlyEtc);
+  // 자동 차액이 모든 합계에 반영되는지: 현대카드 합계 = 사용금액, 고정금(카드) 합계, 남는 생활비, 공동자산
+  const flow = await page.evaluate(() => {
+    const n = (id) => Number(document.getElementById(id).textContent.replace(/[^\d-]/g, ""));
+    return { hy: n("card-fixed-hyundai-total"), kb: n("card-fixed-kb-total"), card: n("af-stat-card"), sal: n("af-stat-salary"), cash: n("af-stat-cash"), inst: n("af-stat-inst"), rem: n("af-stat-remaining"), joint: n("joint-stat-minhyun") };
+  });
+  check("자동 차액이 현대카드 합계·고정금(카드) 합계·남는 생활비·공동자산까지 반영",
+    flow.hy === 200000 && flow.card === flow.kb + flow.hy && flow.rem === flow.sal - flow.cash - flow.card - flow.inst && flow.joint === flow.rem, flow);
   check("현대카드 자동: 사용금액−나머지 고정금 자동 계산, 사용금액 바뀌면 즉시 갱신, 해제 시 직접 입력, 저장 유지",
     auto1.main.v === "85,100" && auto1.main.ro && auto1.modal.v === "85,100" && auto1.total === "100,000" &&
     auto2.main.v === "185,100" && auto2.total === "200,000" && auto3.v === "200,000" &&
