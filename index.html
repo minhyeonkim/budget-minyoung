@@ -113,17 +113,23 @@
     border-radius:16px;
     padding:16px 18px;
   }
-  .month-nav{
+  /* 달 이동 + 민현/민영/공동자산 + 월급분배/월급분석 탭을 스크롤해도 상단에 고정 */
+  .sticky-head{
     position:sticky;
     top:0;
     z-index:20;
+    margin:-16px -18px 14px;
+    padding:12px 18px 2px;
+    background:var(--surface);
+    border-bottom:1px solid var(--border-soft);
+    border-radius:16px 16px 0 0;
+  }
+  .sticky-head .subtabs{margin-bottom:10px;}
+  .month-nav{
     display:flex;
     align-items:center;
     gap:10px;
-    margin:-16px -18px 14px;
-    padding:12px 18px;
-    background:var(--surface);
-    border-bottom:1px solid var(--border-soft);
+    margin-bottom:10px;
   }
   .card h2{
     margin:0 0 12px;
@@ -263,7 +269,7 @@
   @media (max-width:640px){
     .app{padding:12px; padding-left:max(12px, env(safe-area-inset-left)); padding-right:max(12px, env(safe-area-inset-right)); gap:12px;}
     .card{padding:14px;}
-    .month-nav{margin:-14px -14px 12px; padding:10px 14px;}
+    .sticky-head{margin:-14px -14px 12px; padding:10px 14px 2px;}
     input, select{font-size:16px;}
     td input.money-input.inline-amount, td input.day-input, td input.name-input{font-size:16px;}
     td input.money-input.inline-amount{max-width:110px;}
@@ -368,6 +374,7 @@
   <!-- 월급 계산 -->
   <section class="view active" id="view-salary">
     <div class="card">
+      <div class="sticky-head">
       <div class="month-nav">
         <button class="icon-btn" id="month-prev-btn">◀</button>
         <div id="month-label" style="font-weight:800; font-size:15px; min-width:110px; text-align:center;">-</div>
@@ -379,6 +386,15 @@
         <button data-person="minyoung">민영</button>
         <button data-person="joint">공동자산</button>
       </div>
+      <div class="subtabs" id="minhyun-section-tabs">
+          <button data-section="calc" class="active">월급분배</button>
+          <button data-section="analysis">월급분석</button>
+        </div>
+      <div class="subtabs" id="minyoung-section-tabs" style="display:none;">
+          <button data-section="calc" class="active">월급분배</button>
+          <button data-section="analysis">월급분석</button>
+        </div>
+      </div>
 
       <div class="field-row" id="salary-field-row">
         <div class="field">
@@ -389,10 +405,6 @@
 
       <!-- 민현 전용 패널: 신용카드 + 계좌별 고정금 -->
       <div id="panel-minhyun">
-        <div class="subtabs" id="minhyun-section-tabs" style="margin-bottom:16px;">
-          <button data-section="calc" class="active">월급분배</button>
-          <button data-section="analysis">월급분석</button>
-        </div>
 
         <div id="minhyun-calc-section">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
@@ -686,10 +698,6 @@
 
       <!-- 민영 전용 패널: 기존 방식 유지 (추후 수정 예정) -->
       <div id="panel-minyoung" style="display:none;">
-        <div class="subtabs" id="minyoung-section-tabs" style="margin-bottom:16px;">
-          <button data-section="calc" class="active">월급분배</button>
-          <button data-section="analysis">월급분석</button>
-        </div>
 
         <div id="minyoung-calc-section">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
@@ -770,7 +778,100 @@
         </div>
 
         <div id="minyoung-analysis-section" style="display:none;">
-          <p style="color:var(--text-faint); font-size:13px;">월급분석은 다음에 추가할 예정입니다.</p>
+          <div class="section-head">
+            <h2>고정금(현금) — 은행별</h2>
+            <button class="icon-btn" id="add-my-cash-btn-open">+ 추가</button>
+          </div>
+          <div class="two-col-grid" id="my-cash-groups"></div>
+          <div style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
+
+          <div class="two-col-grid" style="margin-top:24px;">
+            <div>
+              <div class="section-head">
+                <h2>고정금(카드) — 현대카드</h2>
+                <button class="icon-btn" id="add-my-hyundai-btn-open">+ 추가</button>
+              </div>
+              <div class="table-scroll"><table>
+                <thead>
+                  <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr>
+                </thead>
+                <tbody id="my-card-fixed-hyundai-body"></tbody>
+                <tfoot>
+                  <tr class="total-row"><td colspan="3">현대카드 고정금 합계</td><td class="num" id="my-card-fixed-hyundai-total">0</td><td></td></tr>
+                </tfoot>
+              </table></div>
+              <div id="my-hyundai-add-content" style="display:none;">
+                <div class="table-scroll"><table>
+                  <thead>
+                    <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr>
+                  </thead>
+                  <tbody id="modal-my-hyundai-body"></tbody>
+                  <tfoot>
+                    <tr class="total-row"><td colspan="3">현대카드 고정금 합계</td><td class="num" id="modal-my-hyundai-total">0</td><td></td></tr>
+                  </tfoot>
+                </table></div>
+                <div class="field-row" style="margin-top:14px;">
+                  <div class="field"><label>항목명</label><input type="text" id="new-my-hyundai-name" placeholder="예: 통신비"></div>
+                  <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="new-my-hyundai-amount" placeholder="예: 50,000"></div>
+                  <div class="field" style="flex:0; align-self:flex-end;">
+                    <button class="ghost" id="add-my-hyundai-btn">+ 항목 추가</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="section-head">
+                <h2>고정금(카드) — 우리카드</h2>
+                <button class="icon-btn" id="add-my-woori-btn-open">+ 추가</button>
+              </div>
+              <div class="table-scroll"><table>
+                <thead>
+                  <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr>
+                </thead>
+                <tbody id="my-card-fixed-woori-body"></tbody>
+                <tfoot>
+                  <tr class="total-row"><td colspan="3">우리카드 고정금 합계</td><td class="num" id="my-card-fixed-woori-total">0</td><td></td></tr>
+                </tfoot>
+              </table></div>
+              <div id="my-woori-add-content" style="display:none;">
+                <div class="table-scroll"><table>
+                  <thead>
+                    <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr>
+                  </thead>
+                  <tbody id="modal-my-woori-body"></tbody>
+                  <tfoot>
+                    <tr class="total-row"><td colspan="3">우리카드 고정금 합계</td><td class="num" id="modal-my-woori-total">0</td><td></td></tr>
+                  </tfoot>
+                </table></div>
+                <div class="field-row" style="margin-top:14px;">
+                  <div class="field"><label>항목명</label><input type="text" id="new-my-woori-name" placeholder="예: 통신비"></div>
+                  <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="new-my-woori-amount" placeholder="예: 50,000"></div>
+                  <div class="field" style="flex:0; align-self:flex-end;">
+                    <button class="ghost" id="add-my-woori-btn">+ 항목 추가</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-grid" style="margin-top:20px;">
+            <div class="stat">
+              <div class="label">월급</div>
+              <div class="value" id="myaf-stat-salary">0원</div>
+            </div>
+            <div class="stat">
+              <div class="label">고정금(현금) 합계</div>
+              <div class="value bad" id="myaf-stat-cash">0원</div>
+            </div>
+            <div class="stat">
+              <div class="label">고정금(카드) 합계</div>
+              <div class="value bad" id="myaf-stat-card">0원</div>
+            </div>
+            <div class="stat">
+              <div class="label">남는 생활비</div>
+              <div class="value good" id="myaf-stat-remaining">0원</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -791,7 +892,55 @@
             <div class="value good" id="joint-stat-total">0원</div>
           </div>
         </div>
-        <p style="font-size:12px; color:var(--text-faint); margin-top:14px;">각자 "월급분배" 탭의 남는 생활비를 그대로 더한 값입니다. 상단 ◀ ▶ 로 달을 바꾸면 그 달 기준으로 다시 계산됩니다.</p>
+        <p style="font-size:12px; color:var(--text-faint); margin-top:14px;">민현은 "월급분석" 탭, 민영은 "월급분배" 탭의 남는 생활비를 그대로 더한 값입니다. 상단 ◀ ▶ 로 달을 바꾸면 그 달 기준으로 다시 계산됩니다.</p>
+
+        <div class="section-head" style="margin-top:20px;">
+          <h2>생활비 사용 계획</h2>
+          <button class="icon-btn" id="add-living-btn-open">+ 추가</button>
+        </div>
+        <div class="table-scroll"><table>
+          <thead>
+            <tr><th></th><th></th><th>항목</th><th>금액</th><th></th></tr>
+          </thead>
+          <tbody id="joint-living-body"></tbody>
+          <tfoot>
+            <tr class="total-row"><td colspan="3">합계</td><td class="num" id="joint-living-total">0</td><td></td></tr>
+          </tfoot>
+        </table></div>
+
+        <div id="joint-living-add-content" style="display:none;">
+          <div class="table-scroll"><table>
+            <thead>
+              <tr><th></th><th></th><th>항목</th><th>금액</th><th></th></tr>
+            </thead>
+            <tbody id="modal-living-body"></tbody>
+            <tfoot>
+              <tr class="total-row"><td colspan="3">합계</td><td class="num" id="modal-living-total">0</td><td></td></tr>
+            </tfoot>
+          </table></div>
+          <div class="field-row" style="margin-top:14px;">
+            <div class="field"><label>항목명</label><input type="text" id="new-living-name" placeholder="예: 식비"></div>
+            <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="new-living-amount" placeholder="예: 100,000"></div>
+            <div class="field" style="flex:0; align-self:flex-end;">
+              <button class="ghost" id="add-living-btn">+ 항목 추가</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-grid" style="margin-top:16px;">
+          <div class="stat">
+            <div class="label">생활비</div>
+            <div class="value" id="joint-stat-budget">0원</div>
+          </div>
+          <div class="stat">
+            <div class="label">사용 계획 합계</div>
+            <div class="value bad" id="joint-stat-plan">0원</div>
+          </div>
+          <div class="stat">
+            <div class="label">차액</div>
+            <div class="value good" id="joint-stat-diff">0원</div>
+          </div>
+        </div>
       </div>
 
       <div style="margin-top:14px; text-align:right;" id="save-row">
@@ -979,6 +1128,11 @@ var salaryCache = {}; // minhyun: { salary, payday, cards:[{id,name,bank,amount}
 var installmentsCache = {}; // personId -> [{id,name,monthlyAmount,totalInstallments,anchorMonth,anchorInstallment,enabled}] (월과 무관하게 공유)
 var fixedCache = {}; // personId -> { fixedGiup, fixedNh, cardFixedKb, cardFixedHyundai } 또는 { fixedItems } (월과 무관한 전역 기본값)
 var pendingAmountChanges = {}; // itemId -> { person, listKey, name, newAmount } (저장 누르기 전까지 임시 보관, 저장 시 전체/이번달만 선택)
+// 민영 월급분석의 고정금(카드) 목록 — 카드별로 따로 관리 (minyoung_fixed 문서 안)
+var MY_CARD_FIXED = [
+  { key: "hyundai", listKey: "cardFixedHyundai", label: "현대카드" },
+  { key: "woori", listKey: "cardFixedWoori", label: "우리카드" }
+];
 
 function computeEffectiveList(personId, listKey){
   var raw = (fixedCache[personId] && fixedCache[personId][listKey]) || [];
@@ -1023,7 +1177,7 @@ function changeMonth(newMonth){
   pendingAmountChanges = {}; // 저장 안 한 금액 수정은 달을 넘어가면 그 달 것이 아니게 되므로 버림 (다른 달에 잘못 반영되는 걸 방지)
   currentMonth = newMonth;
   renderMonthLabel();
-  ["minhyun", "minyoung"].forEach(function(personId){
+  ["minhyun", "minyoung", "joint"].forEach(function(personId){
     if(salaryUnsubs[personId]) salaryUnsubs[personId]();
     subscribeSalary(personId);
   });
@@ -1051,8 +1205,9 @@ document.querySelectorAll("#person-tabs button").forEach(function(btn){
     document.getElementById("panel-minhyun").style.display = currentPerson === "minhyun" ? "" : "none";
     document.getElementById("panel-minyoung").style.display = currentPerson === "minyoung" ? "" : "none";
     document.getElementById("panel-joint").style.display = currentPerson === "joint" ? "" : "none";
+    document.getElementById("minhyun-section-tabs").style.display = currentPerson === "minhyun" ? "" : "none";
+    document.getElementById("minyoung-section-tabs").style.display = currentPerson === "minyoung" ? "" : "none";
     document.getElementById("salary-field-row").style.display = currentPerson === "joint" ? "none" : "";
-    document.getElementById("save-row").style.display = currentPerson === "joint" ? "none" : "";
     renderSalary();
   });
 });
@@ -1149,8 +1304,32 @@ document.getElementById("add-inst-btn-open").addEventListener("click", function(
 document.getElementById("add-item-btn-open").addEventListener("click", function(){
   openEditModal("고정비 / 차감 항목 추가", "minyoung-add-content");
 });
+document.getElementById("add-my-cash-btn-open").addEventListener("click", function(){
+  openEditModal("고정금(현금) 항목 추가", "minyoung-add-content");
+});
+MY_CARD_FIXED.forEach(function(c){
+  document.getElementById("add-my-" + c.key + "-btn-open").addEventListener("click", function(){
+    openEditModal(c.label + " 고정금 추가", "my-" + c.key + "-add-content");
+  });
+  document.getElementById("add-my-" + c.key + "-btn").addEventListener("click", function(){
+    var nameEl = document.getElementById("new-my-" + c.key + "-name");
+    var amtEl = document.getElementById("new-my-" + c.key + "-amount");
+    var name = nameEl.value.trim();
+    var amount = parseAmount(amtEl.value);
+    if(!name) return;
+    fixedCache["minyoung"] = fixedCache["minyoung"] || defaultFixed("minyoung");
+    fixedCache["minyoung"][c.listKey] = fixedCache["minyoung"][c.listKey] || [];
+    fixedCache["minyoung"][c.listKey].push({ id: uid(), name: name, amount: amount, enabled: true });
+    nameEl.value = ""; amtEl.value = "";
+    renderSalary();
+  });
+});
+document.getElementById("add-living-btn-open").addEventListener("click", function(){
+  openEditModal("생활비 사용 계획 추가", "joint-living-add-content");
+});
 
 function emptySalary(personId){
+  if(personId === "joint") return { fixedOverrides: {} };
   if(personId === "minhyun"){
     return {
       salary: 0,
@@ -1178,7 +1357,8 @@ function defaultFixed(personId){
   if(personId === "minhyun"){
     return { fixedGiup: [], fixedNh: [], cardFixedKb: [], cardFixedHyundai: [] };
   }
-  return { fixedItems: [] };
+  if(personId === "joint") return { livingItems: [] };
+  return { fixedItems: [], cardFixedHyundai: [], cardFixedWoori: [] };
 }
 
 /* 카드 할부: 월별 문서와 별개로 저장 (월을 넘나들어도 같은 데이터, 회차는 anchorMonth 기준으로 계산) */
@@ -1197,7 +1377,7 @@ function computeCurrentInstallment(item, viewMonth){
 
 function renderSalary(){
   if(currentPerson === "joint"){
-    renderJointAssets();
+    renderJoint();
     return;
   }
   var data = salaryCache[currentPerson] || emptySalary(currentPerson);
@@ -1207,16 +1387,9 @@ function renderSalary(){
   renderJointAssets();
 }
 
+// 공동자산의 민현 남는 생활비 = 월급분석 탭의 남는 생활비 (고정금현금+고정금카드+할부 반영)
 function computeMinhyunRemaining(){
-  var data = salaryCache["minhyun"] || emptySalary("minhyun");
-  var cardsByBank = { "기업": 0, "농협": 0 };
-  (data.cards || []).forEach(function(c){ cardsByBank[c.bank] = (cardsByBank[c.bank] || 0) + (Number(c.amount) || 0); });
-  var giupFixedTotal = sumEnabled(computeEffectiveList("minhyun", "fixedGiup"));
-  var nhFixedTotal = sumEnabled(computeEffectiveList("minhyun", "fixedNh"));
-  var salary = Number(data.salary) || 0;
-  var giupTransfer = giupFixedTotal + cardsByBank["기업"];
-  var nhTransfer = nhFixedTotal + cardsByBank["농협"];
-  return salary - giupTransfer - nhTransfer;
+  return computeMinhyunAnalysis().remaining;
 }
 
 function computeMinyoungRemaining(){
@@ -1238,6 +1411,30 @@ function renderJointAssets(){
     var el = document.getElementById(id);
     el.className = "value " + (val < 0 ? "bad" : "good");
   });
+  recomputeJointLiving();
+}
+
+/* 생활비 사용 계획: 둘이 합쳐 쓸 수 있는 생활비 - 항목 합계 = 차액 (금액 입력하는 즉시 다시 계산) */
+function renderJoint(){
+  fixedCache["joint"] = fixedCache["joint"] || defaultFixed("joint");
+  var handlers = makeFixedListHandlers("joint", "livingItems", ["joint-living-total", "modal-living-total"], [recomputeJointLiving]);
+  var list = computeEffectiveList("joint", "livingItems");
+  renderEditableList("joint-living-body", "joint-living-total", list, handlers);
+  renderEditableList("modal-living-body", "modal-living-total", list, handlers);
+  renderJointAssets();
+}
+
+function recomputeJointLiving(){
+  var budget = computeMinhyunRemaining() + computeMinyoungRemaining();
+  var plan = sumEnabled(computeEffectiveList("joint", "livingItems"));
+  var diff = budget - plan;
+  var budgetEl = document.getElementById("joint-stat-budget");
+  budgetEl.textContent = fmt(budget);
+  budgetEl.className = "value " + (budget < 0 ? "bad" : "");
+  document.getElementById("joint-stat-plan").textContent = fmt(plan);
+  var diffEl = document.getElementById("joint-stat-diff");
+  diffEl.textContent = fmt(diff);
+  diffEl.className = "value " + (diff < 0 ? "bad" : "good");
 }
 
 function attachRowDrag(tr, itemId, onReorder){
@@ -1531,7 +1728,7 @@ function renderInstallments(bodyId, totalId, items){
   document.getElementById(totalId).textContent = fmtPlain(sumActiveInstallments(items));
 }
 
-function recomputeMinhyunAnalysis(){
+function computeMinhyunAnalysis(){
   var data = salaryCache["minhyun"] || emptySalary("minhyun");
   var giupTotal = sumEnabled(computeEffectiveList("minhyun", "fixedGiup"));
   var nhTotal = sumEnabled(computeEffectiveList("minhyun", "fixedNh"));
@@ -1541,7 +1738,18 @@ function recomputeMinhyunAnalysis(){
   var cardTotal = kbTotal + hyundaiTotal;
   var instTotal = sumActiveInstallments(installmentsCache["minhyun"]);
   var salary = Number(data.salary) || 0;
-  var remaining = salary - cashTotal - cardTotal - instTotal;
+  return {
+    salary: salary,
+    cashTotal: cashTotal,
+    cardTotal: cardTotal,
+    instTotal: instTotal,
+    remaining: salary - cashTotal - cardTotal - instTotal
+  };
+}
+
+function recomputeMinhyunAnalysis(){
+  var a = computeMinhyunAnalysis();
+  var salary = a.salary, cashTotal = a.cashTotal, cardTotal = a.cardTotal, instTotal = a.instTotal, remaining = a.remaining;
 
   document.getElementById("af-stat-salary").textContent = fmt(salary);
   document.getElementById("af-stat-cash").textContent = fmt(cashTotal);
@@ -1650,11 +1858,79 @@ function renderMinyoung(data){
   renderCardsQuickEntry("minyoung", "my-cards-quick-entry", data.cards, recomputeMinyoungSummary);
   renderCardsEditBody("minyoung", "my-cards-edit-body", data.cards, false);
 
-  var handlers = makeFixedListHandlers("minyoung", "fixedItems", ["fixed-total", "modal-minyoung-total"], [recomputeMinyoungSummary]);
+  var handlers = makeFixedListHandlers("minyoung", "fixedItems", ["fixed-total", "modal-minyoung-total"], [recomputeMinyoungSummary, recomputeMinyoungAnalysis]);
   var list = computeEffectiveList("minyoung", "fixedItems");
   renderEditableList("fixed-items-body", "fixed-total", list, handlers, { showAccount: true });
   renderEditableList("modal-minyoung-body", "modal-minyoung-total", list, handlers, { showAccount: true });
+  renderMinyoungCashGroups(list, handlers);
+
+  MY_CARD_FIXED.forEach(function(c){
+    var cardHandlers = makeFixedListHandlers("minyoung", c.listKey, ["my-card-fixed-" + c.key + "-total", "modal-my-" + c.key + "-total"], [recomputeMinyoungAnalysis]);
+    var cardList = computeEffectiveList("minyoung", c.listKey);
+    renderEditableList("my-card-fixed-" + c.key + "-body", "my-card-fixed-" + c.key + "-total", cardList, cardHandlers);
+    renderEditableList("modal-my-" + c.key + "-body", "modal-my-" + c.key + "-total", cardList, cardHandlers);
+  });
+
   recomputeMinyoungSummary();
+  recomputeMinyoungAnalysis();
+}
+
+/* 민영 월급분석: 고정금(현금)은 월급분배의 fixedItems를 은행(bank)별로 묶어서 보여주고,
+   고정금(카드)는 카드별로 따로 관리하는 목록(cardFixedHyundai / cardFixedWoori) */
+
+function groupByBank(items){
+  var groups = [];
+  var byName = {};
+  (items || []).forEach(function(item){
+    var bank = (item.bank || "").trim() || "은행 미입력";
+    if(!byName[bank]){
+      byName[bank] = { bank: bank, items: [] };
+      groups.push(byName[bank]);
+    }
+    byName[bank].items.push(item);
+  });
+  return groups;
+}
+
+function renderMinyoungCashGroups(list, handlers){
+  var container = document.getElementById("my-cash-groups");
+  container.innerHTML = "";
+  groupByBank(list).forEach(function(group, idx){
+    var wrap = document.createElement("div");
+    wrap.innerHTML =
+      '<div class="section-head"><h2>고정금(현금) — ' + escapeHtml(group.bank) + '</h2></div>' +
+      '<div class="table-scroll"><table>' +
+        '<thead><tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr></thead>' +
+        '<tbody id="my-cash-body-' + idx + '"></tbody>' +
+        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="num" id="my-cash-total-' + idx + '">0</td><td></td></tr></tfoot>' +
+      '</table></div>';
+    container.appendChild(wrap);
+    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, handlers);
+  });
+}
+
+function computeMinyoungAnalysis(){
+  var data = salaryCache["minyoung"] || emptySalary("minyoung");
+  var cashTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
+  var cardTotal = MY_CARD_FIXED.reduce(function(s, c){
+    return s + sumEnabled(computeEffectiveList("minyoung", c.listKey));
+  }, 0);
+  var salary = Number(data.salary) || 0;
+  return { salary: salary, cashTotal: cashTotal, cardTotal: cardTotal, remaining: salary - cashTotal - cardTotal };
+}
+
+function recomputeMinyoungAnalysis(){
+  groupByBank(computeEffectiveList("minyoung", "fixedItems")).forEach(function(group, idx){
+    var el = document.getElementById("my-cash-total-" + idx);
+    if(el) el.textContent = fmtPlain(sumEnabled(group.items));
+  });
+  var a = computeMinyoungAnalysis();
+  document.getElementById("myaf-stat-salary").textContent = fmt(a.salary);
+  document.getElementById("myaf-stat-cash").textContent = fmt(a.cashTotal);
+  document.getElementById("myaf-stat-card").textContent = fmt(a.cardTotal);
+  var remEl = document.getElementById("myaf-stat-remaining");
+  remEl.textContent = fmt(a.remaining);
+  remEl.className = "value " + (a.remaining < 0 ? "bad" : "good");
 }
 
 function recomputeMinyoungSummary(){
@@ -1688,6 +1964,7 @@ document.getElementById("salary-amount").addEventListener("input", function(){
     recomputeMinhyunAnalysis();
   } else {
     recomputeMinyoungSummary();
+    recomputeMinyoungAnalysis();
   }
 });
 
@@ -1827,14 +2104,30 @@ document.getElementById("add-item-btn").addEventListener("click", function(){
   renderSalary();
 });
 
+document.getElementById("add-living-btn").addEventListener("click", function(){
+  var nameEl = document.getElementById("new-living-name");
+  var amtEl = document.getElementById("new-living-amount");
+  var name = nameEl.value.trim();
+  var amount = parseAmount(amtEl.value);
+  if(!name) return;
+  fixedCache["joint"] = fixedCache["joint"] || defaultFixed("joint");
+  fixedCache["joint"].livingItems = fixedCache["joint"].livingItems || [];
+  fixedCache["joint"].livingItems.push({ id: uid(), name: name, amount: amount, enabled: true });
+  nameEl.value = "";
+  amtEl.value = "";
+  renderSalary();
+});
+
 function performSave(){
   var d = salaryCache[currentPerson] || emptySalary(currentPerson);
   var payload = {
-    salary: Number(d.salary) || 0,
     fixedOverrides: d.fixedOverrides || {},
     updatedAt: serverTimestamp()
   };
-  payload.cards = d.cards || [];
+  if(currentPerson !== "joint"){
+    payload.salary = Number(d.salary) || 0;
+    payload.cards = d.cards || [];
+  }
 
   var saveTasks = [setDoc(doc(db, "budget_salaryProfiles", monthDocId(currentPerson, currentMonth)), payload, { merge: true })];
   saveTasks.push(setDoc(doc(db, "budget_salaryProfiles", currentPerson + "_fixed"), fixedCache[currentPerson] || defaultFixed(currentPerson)));
@@ -2050,9 +2343,11 @@ onAuthStateChanged(auth, function(user){
     statusEl.className = "ok";
     subscribeSalary("minhyun");
     subscribeSalary("minyoung");
+    subscribeSalary("joint");
     subscribeInstallments("minhyun");
     subscribeFixed("minhyun");
     subscribeFixed("minyoung");
+    subscribeFixed("joint");
     subscribeAssets();
   }
 });
