@@ -341,6 +341,7 @@
     font-weight:700;
   }
   td input.extra-input{min-width:90px; font-weight:400;}
+  td.sum-left{text-align:left; font-variant-numeric:tabular-nums; padding-left:16px;}
   tr.disabled-row td{opacity:.4;}
   .stat{
     background:#0f0f13;
@@ -994,28 +995,28 @@
         </div>
         <div class="table-scroll"><table>
           <thead>
-            <tr><th></th><th></th><th>항목</th><th>관리카드</th><th class="num">금액</th><th>계좌번호</th><th></th></tr>
+            <tr><th></th><th></th><th>항목</th><th>금액</th><th>관리카드</th><th>계좌번호</th><th></th></tr>
           </thead>
           <tbody id="joint-living-body"></tbody>
           <tfoot>
-            <tr class="total-row"><td colspan="4">합계</td><td class="num" id="joint-living-total">0</td><td colspan="2"></td></tr>
+            <tr class="total-row"><td colspan="3">합계</td><td class="sum-left" id="joint-living-total">0</td><td colspan="3"></td></tr>
           </tfoot>
         </table></div>
 
         <div id="joint-living-add-content" style="display:none;">
           <div class="table-scroll"><table>
             <thead>
-              <tr><th></th><th></th><th>항목</th><th>관리카드</th><th class="num">금액</th><th>계좌번호</th><th></th></tr>
+              <tr><th></th><th></th><th>항목</th><th>금액</th><th>관리카드</th><th>계좌번호</th><th></th></tr>
             </thead>
             <tbody id="modal-living-body"></tbody>
             <tfoot>
-              <tr class="total-row"><td colspan="4">합계</td><td class="num" id="modal-living-total">0</td><td colspan="2"></td></tr>
+              <tr class="total-row"><td colspan="3">합계</td><td class="sum-left" id="modal-living-total">0</td><td colspan="3"></td></tr>
             </tfoot>
           </table></div>
           <div class="field-row" style="margin-top:14px;">
             <div class="field"><label>항목명</label><input type="text" id="new-living-name" placeholder="예: 식비"></div>
-            <div class="field"><label>관리카드</label><input type="text" id="new-living-card" placeholder="예: 우리카드"></div>
             <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="new-living-amount" placeholder="예: 100,000"></div>
+            <div class="field"><label>관리카드</label><input type="text" id="new-living-card" placeholder="예: 우리카드"></div>
             <div class="field"><label>계좌번호</label><input type="text" id="new-living-account" placeholder="예: 110-123-456789"></div>
             <div class="field" style="flex:0; align-self:flex-end;">
               <button class="ghost" id="add-living-btn">+ 항목 추가</button>
@@ -1733,9 +1734,10 @@ function renderJointAssets(){
 
 /* 생활비 사용 계획: 둘이 합쳐 쓸 수 있는 생활비 - 항목 합계 = 차액 */
 function renderJoint(){
+  // 항목 | 금액 | 관리카드 | 계좌번호 — 제목이 입력칸 바로 위(왼쪽 정렬)에 오도록
   var livingOptions = {
-    beforeAmount: [{ field: "card", placeholder: "관리카드" }],
-    afterAmount: [{ field: "account", placeholder: "계좌번호" }]
+    alignLeft: true,
+    afterAmount: [{ field: "card", placeholder: "관리카드" }, { field: "account", placeholder: "계좌번호" }]
   };
   renderEditableList("joint-living-body", "joint-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems", livingOptions);
   renderEditableList("modal-living-body", "modal-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems", livingOptions);
@@ -1791,7 +1793,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var bindBase = "item|" + p + "|" + listKey + "|" + item.id + "|";
     var tr = document.createElement("tr");
     tr.dataset.row = "item|" + p + "|" + listKey + "|" + item.id;
-    var amountCellHtml = '<td' + (showAccount ? "" : ' class="num"') + '><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
+    var amountCellHtml = '<td' + (showAccount || (options && options.alignLeft) ? "" : ' class="num"') + '><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
     function extraCells(list){
       return (list || []).map(function(x){
         return '<td><input type="text" class="name-input extra-input" data-extra="' + x.field + '" placeholder="' + escapeHtml(x.placeholder) + '"></td>';
