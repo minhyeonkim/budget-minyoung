@@ -131,6 +131,10 @@
     gap:10px;
     margin-bottom:10px;
   }
+  .month-nav{flex-wrap:wrap;}
+  .month-quick{display:inline-flex; gap:6px; margin-left:4px;}
+  .month-quick .icon-btn{padding:5px 11px; font-size:13px; font-weight:700;}
+  .month-quick .icon-btn.current{background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
   .card h2{
     margin:0 0 12px;
     font-size:15px;
@@ -494,6 +498,10 @@
         <button class="icon-btn" id="month-prev-btn">◀</button>
         <div id="month-label" style="font-weight:800; font-size:15px; min-width:110px; text-align:center;">-</div>
         <button class="icon-btn" id="month-next-btn">▶</button>
+        <span class="month-quick">
+          <button class="icon-btn" id="month-prevmonth-btn" title="오늘(한국 시간) 기준 지난달">전월</button>
+          <button class="icon-btn" id="month-thismonth-btn" title="오늘(한국 시간) 기준 이번 달">현재월</button>
+        </span>
       </div>
 
       <div class="subtabs" id="person-tabs">
@@ -1358,9 +1366,17 @@ var savingPersons = [];
 var monthUnsubs = {};
 var otherUnsubs = [];
 
+// 오늘 날짜의 "YYYY-MM" — 기기 시간대와 상관없이 대한민국 달력(Asia/Seoul) 기준
 function todayYearMonth(){
-  var d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  try {
+    var parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+    var y = parts.find(function(x){ return x.type === "year"; }).value;
+    var m = parts.find(function(x){ return x.type === "month"; }).value;
+    return y + "-" + m;
+  } catch(_){
+    var d = new Date(Date.now() + 9 * 3600 * 1000); // UTC+9
+    return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0");
+  }
 }
 function monthDocId(personId, month){
   return personId + "_" + month;
@@ -2419,6 +2435,10 @@ document.getElementById("add-my-card-btn").addEventListener("click", function(){
 /* ---------- 달 이동 ---------- */
 function renderMonthLabel(){
   document.getElementById("month-label").textContent = formatMonthLabel(currentMonth);
+  // 전월/현재월은 보고 있는 달이 아니라 오늘(한국 시간) 기준
+  var thisMonth = todayYearMonth();
+  document.getElementById("month-thismonth-btn").classList.toggle("current", currentMonth === thisMonth);
+  document.getElementById("month-prevmonth-btn").classList.toggle("current", currentMonth === shiftMonth(thisMonth, -1));
 }
 function changeMonth(newMonth){
   closeEditModal();
@@ -2470,6 +2490,14 @@ document.getElementById("month-prev-btn").addEventListener("click", function(){
 });
 document.getElementById("month-next-btn").addEventListener("click", function(){
   requestMonthChange(shiftMonth(currentMonth, 1));
+});
+document.getElementById("month-thismonth-btn").addEventListener("click", function(){
+  var target = todayYearMonth();
+  if(target !== currentMonth) requestMonthChange(target);
+});
+document.getElementById("month-prevmonth-btn").addEventListener("click", function(){
+  var target = shiftMonth(todayYearMonth(), -1);
+  if(target !== currentMonth) requestMonthChange(target);
 });
 renderMonthLabel();
 
@@ -3033,6 +3061,8 @@ function updateChrome(){
   document.getElementById("loading-note").style.display = ready ? "none" : "";
   document.getElementById("month-prev-btn").disabled = saving;
   document.getElementById("month-next-btn").disabled = saving;
+  document.getElementById("month-thismonth-btn").disabled = saving;
+  document.getElementById("month-prevmonth-btn").disabled = saving;
   var dirty = dirtyPersons();
   document.querySelectorAll("#person-tabs button").forEach(function(b){
     b.classList.toggle("dirty", dirty.indexOf(b.getAttribute("data-person")) !== -1);

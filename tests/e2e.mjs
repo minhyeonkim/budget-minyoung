@@ -172,6 +172,26 @@ try {
   await sleep(800);
   check("빠른 월 이동 후에도 마지막 달(10월) 데이터만 표시", (await val(page, "#salary-amount")) === "4,000,000" && (await txt(page, "#month-label")) === "2026년 10월" && (await txt(page, "#mh-stat-salary")) === "4,000,000원");
 
+  /* ===== 전월 / 현재월 버튼 (오늘 한국 시간 기준) ===== */
+  await page.click("#month-prev-btn");
+  await waitReady(page, "2026-09");
+  await page.click("#month-prev-btn");
+  await waitReady(page, "2026-08");
+  await page.click("#month-prevmonth-btn");
+  await waitReady(page, "2026-09");
+  const quick1 = { month: (await st(page)).currentMonth, prevOn: await page.$eval("#month-prevmonth-btn", (e) => e.classList.contains("current")) };
+  await page.click("#month-next-btn");
+  await waitReady(page, "2026-10");
+  await page.click("#month-next-btn");
+  await waitReady(page, "2026-11");
+  await page.click("#month-prevmonth-btn");
+  await waitReady(page, "2026-09");
+  await page.click("#month-thismonth-btn");
+  await waitReady(page, "2026-10");
+  const quick2 = { month: (await st(page)).currentMonth, curOn: await page.$eval("#month-thismonth-btn", (e) => e.classList.contains("current")), salary: await val(page, "#salary-amount") };
+  check("전월/현재월: 보고 있는 달과 상관없이 오늘(10월) 기준으로 9월/10월로 이동 + 표시",
+    quick1.month === "2026-09" && quick1.prevOn && quick2.month === "2026-10" && quick2.curOn && quick2.salary === "4,000,000", { quick1, quick2 });
+
   // 입력 칸에 포커스가 남은 채(모바일에서 버튼을 눌러도 포커스가 안 옮겨지는 경우) 달 이동
   await page.focus("#salary-amount");
   await page.evaluate(() => document.getElementById("month-next-btn").click());
@@ -414,6 +434,11 @@ try {
   await waitReady(mp, "2026-10");
   const mobile = {};
   mobile.overflow = await mp.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  mobile.quickBtns = await mp.evaluate(() => ["month-prevmonth-btn", "month-thismonth-btn"].every((id) => {
+    const r = document.getElementById(id).getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return r.right <= window.innerWidth && top === document.getElementById(id);
+  }));
   await mp.evaluate(() => window.scrollTo(0, 600));
   await sleep(300);
   mobile.saveBar = await mp.evaluate(() => {
@@ -451,7 +476,7 @@ try {
     return box.right <= window.innerWidth && close.top >= 0 && close.right <= window.innerWidth;
   });
   if (SHOTS) await mp.screenshot({ path: SHOTS + "/mobile_add_modal.png" });
-  check("모바일(390px): 가로 넘침 없음, 저장 버튼 하단 고정·탭 가능, 표 입력·모달 사용 가능", !mobile.overflow && mobile.saveBar && mobile.tableInputWorks && mobile.saveClickable && mobile.modal && mobile.saved && mobile.addModal, mobile);
+  check("모바일(390px): 가로 넘침 없음, 전월/현재월 버튼 보임, 저장 버튼 하단 고정·탭 가능, 표 입력·모달 사용 가능", !mobile.overflow && mobile.quickBtns && mobile.saveBar && mobile.tableInputWorks && mobile.saveClickable && mobile.modal && mobile.saved && mobile.addModal, mobile);
 
   /* ===== 공용 비밀번호 모드 ===== */
   {
