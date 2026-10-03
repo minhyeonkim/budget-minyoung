@@ -344,6 +344,8 @@
     font-weight:700;
   }
   td input.extra-input{min-width:90px; font-weight:400;}
+  td.auto-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
+  td input.money-input.auto-amount{color:var(--accent); border-style:dashed; cursor:default;}
   td.sum-left{text-align:left; font-variant-numeric:tabular-nums; padding-left:16px;}
   tr.disabled-row td{opacity:.4;}
   .stat{
@@ -713,13 +715,14 @@
               </div>
               <div class="table-scroll"><table>
                 <thead>
-                  <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
+                  <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th>자동</th><th></th></tr>
                 </thead>
                 <tbody id="card-fixed-hyundai-body"></tbody>
                 <tfoot>
-                  <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="card-fixed-hyundai-total">0</td><td></td></tr>
+                  <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="card-fixed-hyundai-total">0</td><td></td><td></td></tr>
                 </tfoot>
               </table></div>
+              <div class="hint" style="margin-top:6px;">오른쪽 <strong>자동</strong>에 체크한 항목은 금액이 자동 계산돼요: 월급분배의 현대카드 사용금액 − 나머지 현대카드 고정금 합계 (체크 해제하면 직접 입력)</div>
             </div>
           </div>
 
@@ -760,11 +763,11 @@
           <div id="hyundai-add-content" style="display:none;">
             <div class="table-scroll"><table>
               <thead>
-                <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
+                <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th>자동</th><th></th></tr>
               </thead>
               <tbody id="modal-hyundai-body"></tbody>
               <tfoot>
-                <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="modal-hyundai-total">0</td><td></td></tr>
+                <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="modal-hyundai-total">0</td><td></td><td></td></tr>
               </tfoot>
             </table></div>
             <div class="field-row" style="margin-top:14px;">
@@ -1477,12 +1480,32 @@ function getInstallments(){
 }
 function computeEffectiveList(p, listKey){
   var overrides = getMonthWork(p).fixedOverrides || {};
-  return getFixedList(p, listKey).map(function(item){
+  var list = getFixedList(p, listKey).map(function(item){
     var merged = Object.assign({}, item, overrides[item.id] || {});
     var pending = pendingAmountChanges[item.id];
     if(pending && pending.listKey === listKey) merged.amount = pending.newAmount;
     return merged;
   });
+  if(p === "minhyun" && listKey === "cardFixedHyundai") applyHyundaiAuto(list);
+  return list;
+}
+
+/* 민현 현대카드 고정금의 "자동" 항목:
+   금액 = 그 달 월급분배의 현대카드 사용금액 − 나머지(체크된) 현대카드 고정금 합계.
+   현대카드 사용금액을 아직 안 넣은 달(0원)은 0원으로 표시. */
+function minhyunHyundaiUsage(){
+  return (getMonthWork("minhyun").cards || []).reduce(function(s, c){
+    return s + (/현대/.test(c.name || "") ? (Number(c.amount) || 0) : 0);
+  }, 0);
+}
+function applyHyundaiAuto(list){
+  var autoItem = list.find(function(x){ return x.auto; });
+  if(!autoItem) return;
+  var usage = minhyunHyundaiUsage();
+  var others = list.reduce(function(s, x){
+    return s + (x !== autoItem && x.enabled !== false ? (Number(x.amount) || 0) : 0);
+  }, 0);
+  autoItem.amount = usage ? usage - others : 0;
 }
 function sumEnabled(items){
   return (items || []).reduce(function(s, x){
@@ -1507,7 +1530,7 @@ function findItem(p, listKey, id){
 function setItemAmount(p, listKey, id, amount){
   if(!canEdit(p)) return;
   var item = findItem(p, listKey, id);
-  if(!item) return;
+  if(!item || item.auto) return;
   var existing = pendingAmountChanges[id];
   var oldAmount;
   if(existing){
@@ -1546,6 +1569,18 @@ function setItemEnabled(p, listKey, id, enabled){
     if(baseOv) m.fixedOverrides[id] = clone(baseOv);
     else delete m.fixedOverrides[id];
   }
+  requestRender();
+}
+function setItemAuto(p, listKey, id, on){
+  if(!canEdit(p)) return;
+  getFixedList(p, listKey).forEach(function(x){
+    if(x.id === id){
+      if(on) x.auto = true; else delete x.auto;
+    } else if(on && x.auto){
+      delete x.auto; // 자동 항목은 한 개만
+    }
+  });
+  if(on){ delete pendingAmountChanges[id]; delete scopeChoices[id]; }
   requestRender();
 }
 function deleteItem(p, listKey, id){
@@ -1659,6 +1694,7 @@ function readBound(bind){
     var item = computeEffectiveList(p, listKey).find(function(x){ return x.id === id; });
     if(!item) return undefined;
     if(field === "enabled") return item.enabled !== false;
+    if(field === "auto") return !!item.auto;
     return item[field];
   }
   if(kind === "card"){
@@ -1873,14 +1909,26 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         : "") +
       (showAccount ? "" : amountCellHtml) +
       extraCells(options && options.afterAmount) +
+      (options && options.autoToggle ? '<td class="auto-cell"><label><input type="checkbox" class="auto-check"> 자동</label></td>' : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
     function bind(el, field){
       el.dataset.bind = bindBase + field;
       el.dataset.focusKey = bodyId + "|" + bindBase + field;
     }
-    var checkbox = tr.querySelector('input[type="checkbox"]');
+    var checkbox = tr.querySelector('td.check-cell input[type="checkbox"]');
     var nameInput = tr.querySelector('input.name-input');
     var amountInput = tr.querySelector('input.money-input');
+    var autoCheck = tr.querySelector("input.auto-check");
+    if(autoCheck){
+      bind(autoCheck, "auto");
+      autoCheck.checked = !!item.auto;
+      autoCheck.addEventListener("change", function(){ setItemAuto(p, listKey, item.id, autoCheck.checked); });
+    }
+    if(item.auto){
+      amountInput.readOnly = true;
+      amountInput.classList.add("auto-amount");
+      amountInput.title = "자동 계산: 월급분배의 현대카드 사용금액 − 나머지 현대카드 고정금";
+    }
     bind(checkbox, "enabled");
     bind(nameInput, "name");
     bind(amountInput, "amount");
@@ -1955,8 +2003,8 @@ function renderMinhyun(){
   });
   renderEditableList("card-fixed-kb-body", "card-fixed-kb-total", computeEffectiveList("minhyun", "cardFixedKb"), "minhyun", "cardFixedKb", { showDay: true });
   renderEditableList("modal-kb-body", "modal-kb-total", computeEffectiveList("minhyun", "cardFixedKb"), "minhyun", "cardFixedKb", { showDay: true });
-  renderEditableList("card-fixed-hyundai-body", "card-fixed-hyundai-total", computeEffectiveList("minhyun", "cardFixedHyundai"), "minhyun", "cardFixedHyundai", { showDay: true });
-  renderEditableList("modal-hyundai-body", "modal-hyundai-total", computeEffectiveList("minhyun", "cardFixedHyundai"), "minhyun", "cardFixedHyundai", { showDay: true });
+  renderEditableList("card-fixed-hyundai-body", "card-fixed-hyundai-total", computeEffectiveList("minhyun", "cardFixedHyundai"), "minhyun", "cardFixedHyundai", { showDay: true, autoToggle: true });
+  renderEditableList("modal-hyundai-body", "modal-hyundai-total", computeEffectiveList("minhyun", "cardFixedHyundai"), "minhyun", "cardFixedHyundai", { showDay: true, autoToggle: true });
 
   renderInstallments("installments-body", "installments-total");
   renderInstallments("modal-inst-body", "modal-inst-total");

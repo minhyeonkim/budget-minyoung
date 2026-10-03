@@ -258,6 +258,42 @@ try {
   await page.click("#month-prev-btn");
   await waitReady(page, "2026-10");
 
+  /* ===== 현대카드 고정금 '자동' (월급분배 현대카드 금액 − 나머지 현대카드 고정금) ===== */
+  await admin(async (db) => {
+    await updateDoc(doc(db, "budget_salaryProfiles", "minhyun_fixed"), {
+      cardFixedHyundai: [{ id: "h1", name: "유튜브", amount: 14900, enabled: true }, { id: "h2", name: "기타(당월 사용금액)", amount: 0, enabled: true }]
+    });
+    await updateDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-10"), {
+      cards: [{ id: "c1", name: "웰스", bank: "농협", amount: 0 }, { id: "c2", name: "신용카드(현대)", bank: "농협", amount: 0 }]
+    });
+  });
+  await page.waitForFunction(() => document.querySelector('[data-bind="card|minhyun||c2|amount"]') && document.querySelector('#card-fixed-hyundai-body tr[data-row$="|h2"]'), { timeout: 15000 });
+  await typeInto(page, '#cards-quick-entry [data-bind="card|minhyun||c2|amount"]', "100000");
+  await clickText(page, "월급분석");
+  await page.click('#card-fixed-hyundai-body tr[data-row$="|h2"] input.auto-check');
+  const autoAmt = (sel) => page.$eval('#' + sel + ' tr[data-row$="|h2"] input.money-input', (e) => ({ v: e.value, ro: e.readOnly }));
+  const auto1 = { main: await autoAmt("card-fixed-hyundai-body"), modal: await autoAmt("modal-hyundai-body"), total: await txt(page, "#card-fixed-hyundai-total") };
+  await clickText(page, "월급분배");
+  await typeInto(page, '#cards-quick-entry [data-bind="card|minhyun||c2|amount"]', "200000");
+  await clickText(page, "월급분석");
+  const auto2 = { main: await autoAmt("card-fixed-hyundai-body"), total: await txt(page, "#card-fixed-hyundai-total") };
+  await page.click('#card-fixed-hyundai-body tr[data-row$="|h1"] input[type="checkbox"]');
+  const auto3 = await autoAmt("card-fixed-hyundai-body");
+  await page.click('#card-fixed-hyundai-body tr[data-row$="|h1"] input[type="checkbox"]');
+  await page.click('#card-fixed-hyundai-body tr[data-row$="|h2"] input.auto-check');
+  const autoOff = await autoAmt("card-fixed-hyundai-body");
+  await page.click('#card-fixed-hyundai-body tr[data-row$="|h2"] input.auto-check');
+  await page.click("#save-salary-btn");
+  await waitSaved(page);
+  const fxH = (await read("minhyun_fixed")).cardFixedHyundai;
+  check("현대카드 자동: 사용금액−나머지 고정금 자동 계산, 사용금액 바뀌면 즉시 갱신, 해제 시 직접 입력, 저장 유지",
+    auto1.main.v === "85,100" && auto1.main.ro && auto1.modal.v === "85,100" && auto1.total === "100,000" &&
+    auto2.main.v === "185,100" && auto2.total === "200,000" && auto3.v === "200,000" &&
+    autoOff.v === "" && !autoOff.ro &&
+    fxH[1].auto === true && (await read("minhyun_2026-10")).cards[1].amount === 200000 && (await st(page)).dirty.length === 0,
+    { auto1, auto2, auto3, autoOff, fxH });
+  await clickText(page, "월급분배");
+
   /* ===== 같은 항목의 여러 화면 동기화 ===== */
   await page.click("#fixed-giup-body input.money-input", { clickCount: 3 });
   await page.keyboard.press("Backspace");
