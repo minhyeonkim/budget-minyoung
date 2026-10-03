@@ -25,6 +25,8 @@ const nodeAuth = getAuth(nodeApp);
 connectAuthEmulator(nodeAuth, "http://127.0.0.1:9099", { disableWarnings: true });
 const member = (await createUserWithEmailAndPassword(nodeAuth, "member@example.com", "pass1234")).user;
 const stranger = (await createUserWithEmailAndPassword(nodeAuth, "stranger@example.com", "pass1234")).user;
+const SHARED_PW = "Test-Shared-Pass-2026!";
+const shared = (await createUserWithEmailAndPassword(nodeAuth, "family@budget-minyoung.invalid", SHARED_PW)).user;
 
 const admin = async (fn) => { let out; await env.withSecurityRulesDisabled(async (ctx) => { out = await fn(ctx.firestore()); }); return out; };
 const read = (id) => admin(async (db) => { const s = await getDoc(doc(db, "budget_salaryProfiles", id)); return s.exists() ? s.data() : null; });
@@ -32,6 +34,7 @@ const read = (id) => admin(async (db) => { const s = await getDoc(doc(db, "budge
 // ---- 테스트 데이터 (가짜) ----
 await admin(async (db) => {
   await setDoc(doc(db, "budget_members", member.uid), { name: "테스트 민현" });
+  await setDoc(doc(db, "budget_members", shared.uid), { name: "공용" });
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_fixed"), {
     fixedGiup: [{ id: "g1", name: "대출", day: 20, amount: 600000, enabled: true }],
     fixedNh: [{ id: "n1", name: "보험", day: 15, amount: 400000, enabled: true }],
@@ -423,6 +426,36 @@ try {
   });
   if (SHOTS) await mp.screenshot({ path: SHOTS + "/mobile_add_modal.png" });
   check("모바일(390px): 가로 넘침 없음, 저장 버튼 하단 고정·탭 가능, 표 입력·모달 사용 가능", !mobile.overflow && mobile.saveBar && mobile.tableInputWorks && mobile.saveClickable && mobile.modal && mobile.saved && mobile.addModal, mobile);
+
+  /* ===== 공용 비밀번호 모드 ===== */
+  {
+    const pp = await newPage(390, 844, true);
+    await pp.goto(URL_ + "&auth=password");
+    await pp.waitForFunction(() => document.getElementById("password-form").style.display !== "none", { timeout: 15000 });
+    const locked = await pp.evaluate(() => ({
+      app: getComputedStyle(document.getElementById("app-main")).display,
+      money: /\d{1,3}(,\d{3})+원/.test(document.body.innerText),
+      title: document.getElementById("gate-title").textContent
+    }));
+    check("비밀번호 모드: 처음엔 잠금 화면만, 금액 안 보임", locked.app === "none" && !locked.money && locked.title === "가계부 잠금", locked);
+    await pp.type("#shared-password", "wrong-password");
+    await pp.click("#password-submit");
+    await pp.waitForFunction(() => document.getElementById("password-error").style.display !== "none", { timeout: 15000 });
+    const wrong = { err: await txt(pp, "#password-error"), app: await pp.$eval("#app-main", (e) => getComputedStyle(e).display), authorized: (await st(pp)).authorized };
+    check("틀린 비밀번호: 오류 표시, 계속 잠김", wrong.err.includes("맞지 않") && wrong.app === "none" && !wrong.authorized, wrong);
+    await typeInto(pp, "#shared-password", SHARED_PW);
+    await pp.click("#password-submit");
+    await pp.waitForFunction(() => window.__budgetTest.state().ready, { timeout: 15000 });
+    check("맞는 비밀번호: 가계부 열림 + 데이터 표시", (await val(pp, "#salary-amount")) !== "" && (await pp.$eval("#logout-btn", (e) => e.textContent)) === "잠그기");
+    await pp.reload();
+    await pp.waitForFunction(() => window.__budgetTest && window.__budgetTest.state().ready, { timeout: 15000 });
+    check("새로고침해도 다시 묻지 않음(이 기기에서 한 번만 입력)", (await st(pp)).authorized);
+    page.__dialogHandler = null;
+    await pp.click("#logout-btn");
+    await pp.waitForFunction(() => document.getElementById("password-form") && document.getElementById("password-form").style.display !== "none", { timeout: 15000 });
+    check("잠그기 → 다시 비밀번호 화면", await pp.$eval("#app-main", (e) => getComputedStyle(e).display) === "none");
+    await pp.close();
+  }
 
   /* ===== 임시 익명 모드 (콘솔 설정 전 배포용, 현재 실제 서버와 같은 request.auth != null 규칙) ===== */
   const LEGACY_RULES = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null;\n    }\n  }\n}\n";

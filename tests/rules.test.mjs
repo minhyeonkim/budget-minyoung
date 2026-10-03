@@ -11,12 +11,15 @@ await env.clearFirestore();
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
   await setDoc(doc(db, "budget_members", "member-uid"), { name: "민현" });
+  await setDoc(doc(db, "budget_members", "shared-uid"), { name: "공용" });
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-10"), { salary: 1 });
   await setDoc(doc(db, "budget_assets", "a1"), { kind: "loan", limit: 1, used: 0 });
   await setDoc(doc(db, "events", "e1"), { title: "캘린더" });
 });
 
 const member = env.authenticatedContext("member-uid", { email: "member@example.com" }).firestore();
+const sharedAcct = env.authenticatedContext("shared-uid", { email: "family@budget-minyoung.invalid", firebase: { sign_in_provider: "password" } }).firestore();
+const pwStranger = env.authenticatedContext("other-pw-uid", { email: "family@budget-minyoung.invalid", firebase: { sign_in_provider: "password" } }).firestore();
 const stranger = env.authenticatedContext("stranger-uid", { email: "stranger@example.com" }).firestore();
 const anon = env.authenticatedContext("anon-uid", { firebase: { sign_in_provider: "anonymous" } }).firestore();
 const unauth = env.unauthenticatedContext().firestore();
@@ -28,6 +31,8 @@ const cases = [
   ["승인 계정: 자산 추가 허용", () => assertSucceeds(addDoc(collection(member, "budget_assets"), { kind: "saving", amount: 1 }))],
   ["승인 계정: 자기 멤버 문서 읽기 허용", () => assertSucceeds(getDoc(doc(member, "budget_members", "member-uid")))],
   ["승인 계정: 멤버 목록 쓰기 차단", () => assertFails(setDoc(doc(member, "budget_members", "new-uid"), { name: "x" }))],
+  ["공용 비밀번호 계정(등록됨): 월급 문서 읽기·쓰기 허용", () => assertSucceeds(setDoc(doc(sharedAcct, "budget_salaryProfiles", "minyoung_2026-10"), { salary: 3 }, { merge: true }))],
+  ["같은 이메일을 사칭해도 UID가 다르면 차단", () => assertFails(getDoc(doc(pwStranger, "budget_salaryProfiles", "minhyun_2026-10")))],
   ["미승인 계정: 월급 문서 읽기 차단", () => assertFails(getDoc(doc(stranger, "budget_salaryProfiles", "minhyun_2026-10")))],
   ["미승인 계정: 월급 문서 쓰기 차단", () => assertFails(setDoc(doc(stranger, "budget_salaryProfiles", "minhyun_2026-10"), { salary: 9 }))],
   ["미승인 계정: 자산 읽기 차단", () => assertFails(getDocs(collection(stranger, "budget_assets")))],

@@ -443,6 +443,15 @@
       <div style="margin-top:10px;"><button class="ghost" id="gate-logout-btn">다른 계정으로 로그인</button></div>
     </div>
     <button class="primary" id="login-btn" style="display:none;">Google 계정으로 로그인</button>
+    <form id="password-form" style="display:none;" autocomplete="on">
+      <input type="text" name="username" autocomplete="username" id="password-username" style="display:none;" tabindex="-1" aria-hidden="true">
+      <div class="field" style="margin-bottom:10px;">
+        <label for="shared-password">가계부 비밀번호</label>
+        <input type="password" id="shared-password" autocomplete="current-password" required>
+      </div>
+      <div class="field-error" id="password-error" style="display:none; margin-top:0;"></div>
+      <button class="primary" type="submit" id="password-submit">열기</button>
+    </form>
   </section>
 
   <div class="app-main" id="app-main" style="display:none;">
@@ -1133,7 +1142,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
-  getRedirectResult, signOut, connectAuthEmulator, signInWithEmailAndPassword, signInAnonymously
+  getRedirectResult, signOut, connectAuthEmulator, signInWithEmailAndPassword, signInAnonymously,
+  setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, getDocFromServer, onSnapshot, collection, addDoc, deleteDoc,
@@ -1170,12 +1180,17 @@ var ASSET_COL = "budget_assets";
 var MEMBER_COL = "budget_members"; // 승인된 계정 목록 (문서 ID = Firebase Auth UID). 콘솔에서만 추가/삭제.
 
 /* 로그인 방식
-   - "anonymous": 예전과 같은 익명 로그인 (Firebase 콘솔 설정 전 임시 사용. 링크만 알면 누구나 열 수 있어 보안 없음)
-   - "member"   : Google 로그인 + budget_members 승인 계정만 사용 (README "보안 설정 절차" 완료 후 이 값으로 바꿔서 배포)
-   로컬 테스트(?emulator)에서는 기본 "member", 주소에 &auth=anonymous 를 붙이면 익명 모드. */
+   - "password" : 두 사람이 함께 쓰는 공용 비밀번호 1개. 기기마다 처음 한 번만 입력 (콘솔 설정 필요, 미사용)
+   - "member"   : 각자 Google 로그인 + budget_members 에 등록된 계정만
+   - "anonymous": 익명 로그인 (링크만 알면 누구나 열람 — 보안 없음) (현재 사용)
+   password/member 모두 실제 보호는 Firestore 규칙(budget_members/{uid} 존재 여부)이 담당.
+   로컬 테스트(?emulator)에서는 주소의 &auth=password|anonymous 로 바꿀 수 있고 기본은 "member". */
 var AUTH_MODE = "anonymous";
+// 공용 계정 이메일. 실제로 메일을 받을 수 없는 예약 도메인(.invalid)이라 비밀번호 재설정 메일로 계정을 가로챌 수 없음.
+var SHARED_EMAIL = "family@budget-minyoung.invalid";
 if(USE_EMULATOR){
-  AUTH_MODE = /[?&]auth=anonymous(&|$)/.test(location.search) ? "anonymous" : "member";
+  var m = /[?&]auth=(password|anonymous)(&|$)/.exec(location.search);
+  AUTH_MODE = m ? m[1] : "member";
 }
 
 var statusEl = document.getElementById("status");
@@ -2984,7 +2999,22 @@ function showGate(mode, user, err){
   var loginBtn = document.getElementById("login-btn");
   account.style.display = "none";
   loginBtn.style.display = "none";
-  if(mode === "login"){
+  var pwForm = document.getElementById("password-form");
+  pwForm.style.display = "none";
+  if(mode === "login" && AUTH_MODE === "password"){
+    title.textContent = "가계부 잠금";
+    msg.textContent = "가계부 비밀번호를 입력하세요. 이 기기에서는 처음 한 번만 입력하면 돼요.";
+    pwForm.style.display = "";
+    document.getElementById("password-username").value = SHARED_EMAIL;
+    authStatus = { text: "잠김", cls: "warn" };
+  } else if(mode === "denied" && AUTH_MODE === "password"){
+    title.textContent = "서버 설정이 아직 끝나지 않았어요";
+    msg.textContent = "비밀번호는 맞지만 서버의 승인 목록(budget_members)에 공용 계정이 등록되지 않았거나 보안 규칙이 아직 게시되지 않았어요.";
+    account.style.display = "";
+    document.getElementById("gate-email").textContent = user.email || "(이메일 없음)";
+    document.getElementById("gate-uid").textContent = user.uid;
+    authStatus = { text: "승인되지 않은 계정", cls: "err" };
+  } else if(mode === "login"){
     title.textContent = "로그인이 필요해요";
     msg.textContent = "민현·민영으로 승인된 Google 계정으로 로그인하면 가계부를 볼 수 있어요.";
     loginBtn.style.display = "";
@@ -3010,10 +3040,11 @@ function showGate(mode, user, err){
 function showApp(user){
   authStatus = null;
   authorized = true;
+  document.getElementById("logout-btn").textContent = AUTH_MODE === "password" ? "잠그기" : "로그아웃";
   document.getElementById("auth-gate").style.display = "none";
   document.getElementById("app-main").style.display = "";
   document.getElementById("user-box").style.display = "";
-  document.getElementById("user-email").textContent = user.email || "";
+  document.getElementById("user-email").textContent = AUTH_MODE === "password" ? "" : (user.email || "");
 }
 
 document.getElementById("login-btn").addEventListener("click", function(){
@@ -3031,8 +3062,42 @@ document.getElementById("login-btn").addEventListener("click", function(){
 getRedirectResult(auth).catch(function(err){
   document.getElementById("gate-msg").textContent = "로그인 실패: " + err.code;
 });
+var pwBusy = false;
+document.getElementById("password-form").addEventListener("submit", function(e){
+  e.preventDefault();
+  if(pwBusy) return;
+  var input = document.getElementById("shared-password");
+  var errEl = document.getElementById("password-error");
+  var btn = document.getElementById("password-submit");
+  errEl.style.display = "none";
+  pwBusy = true;
+  btn.disabled = true;
+  btn.textContent = "확인 중…";
+  setPersistence(auth, browserLocalPersistence).then(function(){
+    return signInWithEmailAndPassword(auth, SHARED_EMAIL, input.value);
+  }).then(function(){
+    input.value = "";
+  }).catch(function(err){
+    var code = err && err.code;
+    var text = "열 수 없어요: " + code;
+    if(code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/invalid-login-credentials" || code === "auth/user-not-found" || code === "auth/missing-password"){
+      text = "비밀번호가 맞지 않아요.";
+    } else if(code === "auth/too-many-requests"){
+      text = "틀린 시도가 많아 잠시 막혔어요. 몇 분 뒤에 다시 시도해 주세요.";
+    } else if(code === "auth/network-request-failed"){
+      text = "인터넷 연결을 확인해 주세요.";
+    }
+    errEl.textContent = text;
+    errEl.style.display = "";
+    input.select();
+  }).finally(function(){
+    pwBusy = false;
+    btn.disabled = false;
+    btn.textContent = "열기";
+  });
+});
 function doSignOut(){
-  if(dirtyPersons().length && !confirm("저장하지 않은 변경이 있어요. 버리고 로그아웃할까요?")) return;
+  if(dirtyPersons().length && !confirm("저장하지 않은 변경이 있어요. 버리고 잠글까요?")) return;
   dirtyPersons().forEach(discardPerson);
   signOut(auth).then(function(){ location.reload(); });
 }
@@ -3065,8 +3130,8 @@ onAuthStateChanged(auth, async function(user){
     updateChrome();
     return;
   }
-  if(user.isAnonymous){
-    // 승인 계정 모드에서는 익명 로그인을 쓰지 않음
+  if(user.isAnonymous || (AUTH_MODE === "password" && user.email !== SHARED_EMAIL)){
+    // 비밀번호/승인 계정 모드에서는 익명 로그인이나 다른 계정을 쓰지 않음
     signOut(auth);
     return;
   }

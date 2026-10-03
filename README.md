@@ -6,7 +6,7 @@
 
 https://minhyeonkim.github.io/budget-minyoung/
 
-(GitHub Pages로 배포됨. 현재는 로그인 없이 링크만 열면 바로 쓸 수 있는 익명 로그인 모드입니다(링크를 아는 사람은 누구나 볼 수 있음). 계정별 제한이 필요해지면 아래 "보안 설정 절차"를 따르세요. 모바일 화면에도 맞춰져 있습니다. 저장 방식은 아래 "저장 방식"을 참고하세요 — 월급·고정비는 **저장 버튼을 눌러야** 서버에 반영됩니다.)
+(GitHub Pages로 배포됨. 현재는 로그인 없이 링크만 열면 바로 쓸 수 있는 익명 로그인 모드입니다(링크를 아는 사람은 누구나 볼 수 있음). 잠금이 필요해지면 아래 `AUTH_MODE` 설명의 공용 비밀번호 방식이나 "보안 설정 절차"를 따르세요. 모바일 화면에도 맞춰져 있습니다. 저장 방식은 아래 "저장 방식"을 참고하세요 — 월급·고정비는 **저장 버튼을 눌러야** 서버에 반영됩니다.)
 
 ## 저장 방식
 
@@ -27,7 +27,7 @@ https://minhyeonkim.github.io/budget-minyoung/
 
 - `index.html` 파일 하나로 동작하는 정적 웹페이지입니다. 별도 서버/빌드 과정이 없습니다.
 - Firebase 프로젝트: `calendar-minyoung` ([malang-calendar-personal](../malang-calendar-personal)과 동일 프로젝트를 공유하되, 컬렉션을 분리해서 사용)
-- 로그인 방식은 `index.html`의 `AUTH_MODE`로 정합니다. 현재 값은 `"anonymous"`(익명 로그인 — 링크만 알면 누구나 볼 수 있어 보안 없음, 계정 등록 불필요). `"member"`로 바꿔 배포하면:
+- 로그인 방식은 `index.html`의 `AUTH_MODE`로 정합니다. 현재 값은 `"anonymous"`. `"password"`로 바꾸면 공용 계정(`family@budget-minyoung.invalid`, 메일을 받을 수 없는 예약 도메인이라 비밀번호 재설정으로 가로챌 수 없음)에 공용 비밀번호로 로그인하고, 이 계정의 UID가 `budget_members`에 등록돼 있어야 데이터를 읽고 쓸 수 있습니다. 비밀번호를 여러 번 틀리면 Firebase가 잠시 시도를 막습니다. 비밀번호 변경은 Firebase 콘솔 → Authentication → Users에서 합니다. (`"anonymous"`는 링크만 알면 누구나 열람 가능한 예전 방식.) `"member"`로 바꿔 배포하면:
 - Google 계정으로 로그인하고, `budget_members/{uid}` 에 등록된(승인된) 계정만 데이터를 보고 수정할 수 있습니다. 승인 확인 전에는 금융정보를 표시하거나 구독하지 않습니다. (예전 버전의 익명 로그인은 더 이상 쓰지 않습니다.)
 - **실제 보호는 Firestore 보안 규칙(`firestore.rules`)이 합니다.** 화면에서 막는 것만으로는 보안이 되지 않으므로, 아래 "보안 설정 절차"대로 규칙을 콘솔에 적용해야 합니다.
 
