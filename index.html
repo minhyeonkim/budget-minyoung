@@ -275,7 +275,6 @@
     td input.money-input.inline-amount{max-width:110px;}
     .subtabs{flex-wrap:wrap;}
     nav.tabs button{padding:9px 8px; font-size:13px;}
-    table{min-width:540px;}
     .modal-overlay{padding:10px;}
     .modal-box{padding:16px;}
     .field{min-width:120px;}
@@ -419,6 +418,31 @@
   .gate-card p{color:var(--text-dim); font-size:14px; line-height:1.6;}
   .gate-account{background:#0f0f13; border:1px solid var(--border-soft); border-radius:12px; padding:12px 14px; font-size:13px; margin:12px 0; word-break:break-all;}
   .gate-account code{color:var(--accent);}
+
+  /* ---- 모바일: 표를 옆으로 스크롤하지 않도록 행마다 카드 형태로 표시 (PC는 그대로) ---- */
+  @media (max-width:640px){
+    .table-scroll{overflow-x:visible; margin:0;}
+    table:not(.compact){display:block; min-width:0;}
+    table:not(.compact) thead{display:none;}
+    table:not(.compact) tbody, table:not(.compact) tfoot{display:block;}
+    table:not(.compact) tbody tr{
+      display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px;
+      padding:10px; margin-bottom:8px;
+      background:#0f0f13; border:1px solid var(--border-soft); border-radius:12px;
+    }
+    table:not(.compact) tbody td{display:block; padding:0; border:0; order:2; flex:1 1 calc(50% - 4px); min-width:0; text-align:left;}
+    table:not(.compact) tbody td.drag-cell{display:none;}
+    table:not(.compact) tbody td.check-cell{order:0; flex:0 0 auto; width:auto; align-self:center;}
+    table:not(.compact) tbody td.name-cell{order:0; flex:1 1 50%;}
+    table:not(.compact) tbody td.row-actions{order:3; flex:0 0 auto; margin-left:auto; align-self:center;}
+    table:not(.compact) tbody tr:has(td.name-cell) td.row-actions{order:1;}
+    table:not(.compact) tbody td[data-label]::before{content:attr(data-label); display:block; font-size:11px; color:var(--text-faint); margin-bottom:3px;}
+    table:not(.compact) tbody td input:not(.day-input):not([type="checkbox"]), table:not(.compact) tbody td select{width:100%; max-width:none !important; min-width:0;}
+    table:not(.compact) tfoot tr{display:flex; justify-content:space-between; gap:10px; padding:8px 10px;}
+    table:not(.compact) tfoot td{display:block; padding:0; border:0;}
+    table:not(.compact) tfoot td:empty{display:none;}
+    table:not(.compact) tr.drag-over td{border-top:0;}
+  }
 
   ::-webkit-scrollbar{width:8px; height:8px;}
   ::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
@@ -1691,6 +1715,26 @@ function refreshComputed(){
   updateChrome();
 }
 
+/* 모바일 카드 표시용: 각 칸에 표 제목(금액, 계좌번호 등)을 data-label로 붙임. PC에서는 쓰이지 않음 */
+function labelTableCells(root){
+  (root || document).querySelectorAll("table:not(.compact)").forEach(function(table){
+    if(!table.tHead || !table.tHead.rows.length) return;
+    var heads = Array.prototype.map.call(table.tHead.rows[0].cells, function(th){ return th.textContent.trim(); });
+    Array.prototype.forEach.call(table.tBodies, function(tbody){
+      Array.prototype.forEach.call(tbody.rows, function(tr){
+        Array.prototype.forEach.call(tr.cells, function(td, i){
+          var label = heads[i] || "";
+          if(label === "항목" && td.querySelector("input")){
+            td.classList.add("name-cell");
+          } else if(label && !td.classList.contains("row-actions")){
+            td.dataset.label = label;
+          }
+        });
+      });
+    });
+  });
+}
+
 function renderSalary(){
   if(!authorized) return;
   var salaryInput = document.getElementById("salary-amount");
@@ -1702,6 +1746,7 @@ function renderSalary(){
   renderMinhyun();
   renderMinyoung();
   renderJoint();
+  labelTableCells(document);
   refreshComputed();
 }
 
@@ -2875,6 +2920,7 @@ function renderAssets(){
   });
   document.getElementById("saving-total").textContent = fmtPlain(savingTotal);
   document.getElementById("stat-saving-total").textContent = fmt(savingTotal);
+  labelTableCells(document.getElementById("view-assets"));
 }
 
 function subscribeAssets(){
