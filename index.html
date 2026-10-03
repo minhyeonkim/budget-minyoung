@@ -340,6 +340,7 @@
     font-size:13px;
     font-weight:700;
   }
+  td input.extra-input{min-width:90px; font-weight:400;}
   tr.disabled-row td{opacity:.4;}
   .stat{
     background:#0f0f13;
@@ -993,27 +994,29 @@
         </div>
         <div class="table-scroll"><table>
           <thead>
-            <tr><th></th><th></th><th>항목</th><th>금액</th><th></th></tr>
+            <tr><th></th><th></th><th>항목</th><th>관리카드</th><th class="num">금액</th><th>계좌번호</th><th></th></tr>
           </thead>
           <tbody id="joint-living-body"></tbody>
           <tfoot>
-            <tr class="total-row"><td colspan="3">합계</td><td class="num" id="joint-living-total">0</td><td></td></tr>
+            <tr class="total-row"><td colspan="4">합계</td><td class="num" id="joint-living-total">0</td><td colspan="2"></td></tr>
           </tfoot>
         </table></div>
 
         <div id="joint-living-add-content" style="display:none;">
           <div class="table-scroll"><table>
             <thead>
-              <tr><th></th><th></th><th>항목</th><th>금액</th><th></th></tr>
+              <tr><th></th><th></th><th>항목</th><th>관리카드</th><th class="num">금액</th><th>계좌번호</th><th></th></tr>
             </thead>
             <tbody id="modal-living-body"></tbody>
             <tfoot>
-              <tr class="total-row"><td colspan="3">합계</td><td class="num" id="modal-living-total">0</td><td></td></tr>
+              <tr class="total-row"><td colspan="4">합계</td><td class="num" id="modal-living-total">0</td><td colspan="2"></td></tr>
             </tfoot>
           </table></div>
           <div class="field-row" style="margin-top:14px;">
             <div class="field"><label>항목명</label><input type="text" id="new-living-name" placeholder="예: 식비"></div>
+            <div class="field"><label>관리카드</label><input type="text" id="new-living-card" placeholder="예: 우리카드"></div>
             <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="new-living-amount" placeholder="예: 100,000"></div>
+            <div class="field"><label>계좌번호</label><input type="text" id="new-living-account" placeholder="예: 110-123-456789"></div>
             <div class="field" style="flex:0; align-self:flex-end;">
               <button class="ghost" id="add-living-btn">+ 항목 추가</button>
             </div>
@@ -1730,8 +1733,12 @@ function renderJointAssets(){
 
 /* 생활비 사용 계획: 둘이 합쳐 쓸 수 있는 생활비 - 항목 합계 = 차액 */
 function renderJoint(){
-  renderEditableList("joint-living-body", "joint-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems");
-  renderEditableList("modal-living-body", "modal-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems");
+  var livingOptions = {
+    beforeAmount: [{ field: "card", placeholder: "관리카드" }],
+    afterAmount: [{ field: "account", placeholder: "계좌번호" }]
+  };
+  renderEditableList("joint-living-body", "joint-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems", livingOptions);
+  renderEditableList("modal-living-body", "modal-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems", livingOptions);
 }
 
 function recomputeJointLiving(){
@@ -1785,10 +1792,16 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var tr = document.createElement("tr");
     tr.dataset.row = "item|" + p + "|" + listKey + "|" + item.id;
     var amountCellHtml = '<td' + (showAccount ? "" : ' class="num"') + '><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
+    function extraCells(list){
+      return (list || []).map(function(x){
+        return '<td><input type="text" class="name-input extra-input" data-extra="' + x.field + '" placeholder="' + escapeHtml(x.placeholder) + '"></td>';
+      }).join("");
+    }
     tr.innerHTML =
       '<td class="drag-cell"><span class="drag-handle">⠿</span></td>' +
       '<td class="check-cell"><input type="checkbox"></td>' +
       '<td><input type="text" class="name-input"></td>' +
+      extraCells(options && options.beforeAmount) +
       (showDay ? '<td class="num"><input type="text" inputmode="numeric" class="day-input" maxlength="2" placeholder="일"></td>' : "") +
       (showAccount ? amountCellHtml : "") +
       (showAccount ?
@@ -1796,6 +1809,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         '<td><input type="text" class="name-input bank-input" placeholder="은행"></td>'
         : "") +
       (showAccount ? "" : amountCellHtml) +
+      extraCells(options && options.afterAmount) +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
     function bind(el, field){
       el.dataset.bind = bindBase + field;
@@ -1835,6 +1849,12 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         setItemField(p, listKey, item.id, "day", num);
       });
     }
+    tr.querySelectorAll("input.extra-input").forEach(function(el){
+      var field = el.getAttribute("data-extra");
+      bind(el, field);
+      el.value = item[field] || "";
+      el.addEventListener("input", function(){ setItemField(p, listKey, item.id, field, el.value.trim()); });
+    });
     if(showAccount){
       var accountInput = tr.querySelector("input.account-input");
       var bankInput = tr.querySelector("input.bank-input");
@@ -2259,7 +2279,7 @@ document.getElementById("add-living-btn-open").addEventListener("click", functio
 });
 
 /* ---------- 항목 추가 ---------- */
-function wireAddFixed(prefix, p, listKey, withDay){
+function wireAddFixed(prefix, p, listKey, withDay, extraFields){
   document.getElementById("add-" + prefix + "-btn").addEventListener("click", function(){
     var nameEl = document.getElementById("new-" + prefix + "-name");
     var amtEl = document.getElementById("new-" + prefix + "-amount");
@@ -2268,9 +2288,11 @@ function wireAddFixed(prefix, p, listKey, withDay){
     if(!name) return;
     var item = { id: uid(), name: name, amount: parseAmount(amtEl.value), enabled: true };
     if(dayEl) item.day = parseInt(dayEl.value, 10) || 0;
+    (extraFields || []).forEach(function(f){ item[f] = document.getElementById("new-" + prefix + "-" + f).value.trim(); });
     if(addItem(p, listKey, item)){
       nameEl.value = ""; amtEl.value = "";
       if(dayEl) dayEl.value = "";
+      (extraFields || []).forEach(function(f){ document.getElementById("new-" + prefix + "-" + f).value = ""; });
     }
   });
 }
@@ -2278,7 +2300,7 @@ wireAddFixed("giup", "minhyun", "fixedGiup", true);
 wireAddFixed("nh", "minhyun", "fixedNh", true);
 wireAddFixed("kb", "minhyun", "cardFixedKb", true);
 wireAddFixed("hyundai", "minhyun", "cardFixedHyundai", true);
-wireAddFixed("living", "joint", "livingItems", false);
+wireAddFixed("living", "joint", "livingItems", false, ["card", "account"]);
 MY_CARD_FIXED.forEach(function(c){
   document.getElementById("add-my-" + c.key + "-btn-open").addEventListener("click", function(){
     openEditModal(c.label + " 고정금 추가", "my-" + c.key + "-add-content");

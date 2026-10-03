@@ -335,6 +335,32 @@ try {
   keep.my = await val(page, "#salary-amount");
   check("사람 탭을 바꿔도 각자 미저장 값 유지 + 누구 변경인지 표시", keep.mh === "4,600,000" && keep.my === "3,200,000" && keep.dirty.join() === "minhyun,minyoung" && keep.note.includes("민현") && keep.note.includes("민영"), keep);
 
+  /* ===== 생활비 사용 계획: 관리카드·계좌번호 ===== */
+  await page.click('#person-tabs button[data-person="joint"]');
+  await typeInto(page, '#joint-living-body input[data-extra="card"]', "우리카드");
+  await typeInto(page, '#joint-living-body input[data-extra="account"]', "110-123-456789");
+  const livingMirror = await page.evaluate(() => ({
+    card: document.querySelector('#modal-living-body input[data-extra="card"]').value,
+    account: document.querySelector('#modal-living-body input[data-extra="account"]').value,
+    heads: [...document.querySelectorAll("#joint-living-body")[0].closest("table").querySelectorAll("th")].map((t) => t.textContent).join("|")
+  }));
+  await page.click("#add-living-btn-open");
+  await typeInto(page, "#new-living-name", "관리비");
+  await typeInto(page, "#new-living-card", "현대카드");
+  await typeInto(page, "#new-living-amount", "120000");
+  await typeInto(page, "#new-living-account", "333-22-1111");
+  await page.click("#add-living-btn");
+  await page.click("#modal-close-btn");
+  await page.click("#save-salary-btn");
+  await waitSaved(page);
+  const jf = await read("joint_fixed");
+  const last = jf.livingItems[jf.livingItems.length - 1];
+  check("생활비 계획: 관리카드·계좌번호 칸 표시/입력/추가창 동기화/저장",
+    livingMirror.heads.includes("관리카드") && livingMirror.heads.includes("계좌번호") && livingMirror.card === "우리카드" && livingMirror.account === "110-123-456789" &&
+    jf.livingItems[0].card === "우리카드" && jf.livingItems[0].account === "110-123-456789" &&
+    last.name === "관리비" && last.card === "현대카드" && last.amount === 120000 && last.account === "333-22-1111" &&
+    (await st(page)).dirty.join() === "minhyun,minyoung", { livingMirror, items: jf.livingItems, dirty: (await st(page)).dirty });
+
   /* ===== 새로고침 경고 ===== */
   page.__dialogHandler = (d) => d.dismiss();
   page.__lastDialog = null;
