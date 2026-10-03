@@ -1,0 +1,14 @@
+{
+  "name": "budget-minyoung-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore,auth --project demo-budget \"node rules.test.mjs && node e2e.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.0",
+    "firebase": "^10.14.0",
+    "firebase-tools": "^13.0.0",
+    "puppeteer-core": "^23.0.0"
+  }
+}

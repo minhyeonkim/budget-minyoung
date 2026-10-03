@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// 민현민영 가계부 Firestore 보안 규칙 (검토용 파일 — 자동 배포하지 않음)
+//
+// 같은 Firebase 프로젝트(calendar-minyoung)를 말랑 캘린더도 함께 쓰고 있으므로,
+// 콘솔에 붙여넣을 때는 기존 규칙 전체를 지우지 말고 아래 "가계부" 표시된 부분만
+// 기존 규칙 안에 추가/교체하세요. events 블록은 README에 있던 기존 규칙을 그대로 옮겨 둔 것입니다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- 말랑 캘린더 (기존 규칙 그대로, 변경하지 않음) ----
+    match /events/{eventId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ---- 가계부: 승인된 계정 판별 ----
+    // budget_members/{uid} 문서가 있는 계정만 승인된 계정으로 봄.
+    // 이 컬렉션은 앱에서 쓸 수 없고, Firebase 콘솔에서만 추가/삭제함.
+    function isBudgetMember() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/budget_members/$(request.auth.uid));
+    }
+
+    // ---- 가계부: 승인된 계정 목록 ----
+    // 로그인한 사람은 "내가 승인됐는지"만 확인 가능 (다른 사람 목록은 못 봄)
+    match /budget_members/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // ---- 가계부: 월급·고정금·할부 ----
+    match /budget_salaryProfiles/{docId} {
+      allow read, write: if isBudgetMember();
+    }
+
+    // ---- 가계부: 대출·적금 ----
+    match /budget_assets/{assetId} {
+      allow read, write: if isBudgetMember();
+    }
+  }
+}

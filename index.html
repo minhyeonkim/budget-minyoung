@@ -355,6 +355,69 @@
 
   .empty-hint{color:var(--text-faint); font-size:13px; padding:10px 0;}
 
+  #status{cursor:default; max-width:100%; text-align:right;}
+  #status.warn{color:var(--warn);}
+  #status.busy{color:var(--accent);}
+  .top-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; min-width:0;}
+  #user-box{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-faint);}
+  .app-main{display:flex; flex-direction:column; gap:16px; min-width:0;}
+  .app-main > *{min-width:0;}
+  @media (max-width:640px){ .app-main{gap:12px;} }
+
+  .notice{
+    border:1px solid var(--warn);
+    background:rgba(255,179,126,.08);
+    color:var(--text);
+    border-radius:12px;
+    padding:10px 12px;
+    font-size:13px;
+    margin-bottom:12px;
+  }
+  .notice-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .notice-row + .notice-row{margin-top:8px;}
+  .hint{font-size:12px; color:var(--text-faint); line-height:1.6;}
+  .field-error{font-size:12px; color:var(--bad); margin-top:-6px; margin-bottom:8px;}
+
+  #salary-work-area.is-loading .stat .value,
+  #salary-work-area.is-loading tbody,
+  #salary-work-area.is-loading #cards-quick-entry,
+  #salary-work-area.is-loading #my-cards-quick-entry,
+  #salary-work-area.is-loading #my-cash-groups{visibility:hidden;}
+  #salary-work-area.is-loading input{color:transparent;}
+  #salary-work-area.is-saving{opacity:.6;}
+  #loading-note{font-size:13px; color:var(--accent); padding:4px 0 10px;}
+
+  .subtabs button.dirty::after{content:" •"; color:var(--warn);}
+  .subtabs button.dirty.active::after{color:#7a3b00;}
+
+  .save-bar{
+    position:sticky;
+    bottom:0;
+    z-index:15;
+    margin:14px -18px -16px;
+    padding:10px 18px calc(10px + env(safe-area-inset-bottom));
+    background:var(--surface);
+    border-top:1px solid var(--border-soft);
+    border-radius:0 0 16px 16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  @media (max-width:640px){ .save-bar{margin:12px -14px -14px; padding:10px 14px calc(10px + env(safe-area-inset-bottom));} }
+  #dirty-note{font-size:12px; color:var(--text-faint);}
+  #dirty-note.has-dirty{color:var(--warn); font-weight:700;}
+  button.primary:disabled, button.ghost:disabled, button.icon-btn:disabled{opacity:.45; cursor:not-allowed; filter:none;}
+  table.compact{min-width:0 !important;}
+  table.compact td, table.compact th{padding:6px 4px;}
+  table.compact .scope-choices{display:flex; flex-direction:column; gap:6px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px;}
+  .gate-card{max-width:520px; margin:0 auto; width:100%;}
+  .gate-card p{color:var(--text-dim); font-size:14px; line-height:1.6;}
+  .gate-account{background:#0f0f13; border:1px solid var(--border-soft); border-radius:12px; padding:12px 14px; font-size:13px; margin:12px 0; word-break:break-all;}
+  .gate-account code{color:var(--accent);}
+
   ::-webkit-scrollbar{width:8px; height:8px;}
   ::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
 </style>
@@ -363,9 +426,26 @@
 <div class="app">
   <header class="top">
     <h1>민현민영</h1>
-    <span id="status">연결 중…</span>
+    <div class="top-right">
+      <span id="status" class="busy">로그인 확인 중…</span>
+      <span id="user-box" style="display:none;"><span id="user-email"></span><button class="icon-btn" id="logout-btn">로그아웃</button></span>
+    </div>
   </header>
 
+  <!-- 로그인 / 권한 확인 화면: 승인된 계정이 확인되기 전에는 금융정보를 표시하지 않음 -->
+  <section class="card gate-card" id="auth-gate">
+    <h2 id="gate-title">로그인 확인 중…</h2>
+    <p id="gate-msg">잠시만 기다려 주세요.</p>
+    <div class="gate-account" id="gate-account" style="display:none;">
+      이메일: <code id="gate-email"></code><br>
+      UID: <code id="gate-uid"></code>
+      <button class="icon-btn" id="gate-copy-uid" style="margin-left:6px;">UID 복사</button>
+      <div style="margin-top:10px;"><button class="ghost" id="gate-logout-btn">다른 계정으로 로그인</button></div>
+    </div>
+    <button class="primary" id="login-btn" style="display:none;">Google 계정으로 로그인</button>
+  </section>
+
+  <div class="app-main" id="app-main" style="display:none;">
   <nav class="tabs">
     <button data-view="salary" class="active">월급 계산</button>
     <button data-view="assets">자산 현황</button>
@@ -396,6 +476,10 @@
         </div>
       </div>
 
+      <div class="notice" id="conflict-banner" style="display:none;"></div>
+      <div id="loading-note">불러오는 중… (데이터를 다 받기 전에는 편집·저장할 수 없어요)</div>
+
+      <div id="salary-work-area">
       <div class="field-row" id="salary-field-row">
         <div class="field">
           <label>월급 (원)</label>
@@ -943,8 +1027,13 @@
         </div>
       </div>
 
-      <div style="margin-top:14px; text-align:right;" id="save-row">
-        <button class="primary" id="save-salary-btn">저장</button>
+      <div class="save-bar" id="save-row">
+        <div>
+          <div id="dirty-note">저장 안 된 변경 없음</div>
+          <div class="hint">월급·카드값·고정비·할부는 [저장]을 눌러야 서버에 반영돼요.</div>
+        </div>
+        <button class="primary" id="save-salary-btn" disabled>저장</button>
+      </div>
       </div>
     </div>
   </section>
@@ -953,10 +1042,15 @@
   <section class="view" id="view-assets">
     <div class="card">
       <h2>공동 자산 요약</h2>
+      <p class="hint" style="margin:-6px 0 12px;">자산 추가·삭제는 저장 버튼 없이 누르는 즉시 서버에 저장돼요.</p>
       <div class="summary-grid">
         <div class="stat">
-          <div class="label">대출 총 잔액</div>
+          <div class="label">대출 총 잔액 (사용액 합계)</div>
           <div class="value bad" id="stat-loan-balance">0원</div>
+        </div>
+        <div class="stat">
+          <div class="label">사용 가능 금액 (한도 − 사용액)</div>
+          <div class="value good" id="stat-loan-available">0원</div>
         </div>
         <div class="stat">
           <div class="label">대출 총 한도</div>
@@ -973,11 +1067,11 @@
       <h2>대출 현황 (마이너스통장 등)</h2>
       <div class="table-scroll"><table>
         <thead>
-          <tr><th>담당</th><th>항목명</th><th class="num">한도</th><th class="num">사용액</th><th class="num">잔액</th><th></th></tr>
+          <tr><th>담당</th><th>항목명</th><th class="num">한도</th><th class="num">사용액(대출 잔액)</th><th class="num">사용 가능 금액</th><th></th></tr>
         </thead>
         <tbody id="loans-body"></tbody>
         <tfoot>
-          <tr class="total-row"><td colspan="2">합계</td><td class="num" id="loan-limit-total">0</td><td class="num" id="loan-used-total">0</td><td class="num" id="loan-balance-total">0</td><td></td></tr>
+          <tr class="total-row"><td colspan="2">합계</td><td class="num" id="loan-limit-total">0</td><td class="num" id="loan-used-total">0</td><td class="num" id="loan-available-total">0</td><td></td></tr>
         </tfoot>
       </table></div>
       <div class="field-row" style="margin-top:10px;">
@@ -985,12 +1079,14 @@
           <select id="loan-owner"><option value="민현">민현</option><option value="민영">민영</option><option value="공동">공동</option></select>
         </div>
         <div class="field"><label>항목명</label><input type="text" id="loan-name" placeholder="예: 카카오대출"></div>
-        <div class="field"><label>한도</label><input type="text" inputmode="numeric" class="money-input" id="loan-limit" placeholder="예: 3,000,000"></div>
-        <div class="field"><label>사용액</label><input type="text" inputmode="numeric" class="money-input" id="loan-used" placeholder="예: 1,788,024"></div>
+        <div class="field"><label>한도</label><input type="text" inputmode="numeric" class="asset-amount" id="loan-limit" placeholder="예: 30,000,000"></div>
+        <div class="field"><label>사용액</label><input type="text" inputmode="numeric" class="asset-amount" id="loan-used" placeholder="예: 20,000,000"></div>
         <div class="field" style="flex:0; align-self:flex-end;">
           <button class="ghost" id="add-loan-btn">+ 대출 추가</button>
         </div>
       </div>
+      <div class="field-error" id="loan-error" style="display:none;"></div>
+      <div class="hint">원 단위 정수만 입력할 수 있어요. 사용액은 한도를 넘을 수 없어요. 추가하면 바로 저장돼요.</div>
     </div>
 
     <div class="card">
@@ -1009,13 +1105,16 @@
           <select id="saving-owner"><option value="민현">민현</option><option value="민영">민영</option><option value="공동">공동</option></select>
         </div>
         <div class="field"><label>항목명</label><input type="text" id="saving-name" placeholder="예: 주택청약"></div>
-        <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="money-input" id="saving-amount" placeholder="예: 100,000"></div>
+        <div class="field"><label>금액</label><input type="text" inputmode="numeric" class="asset-amount" id="saving-amount" placeholder="예: 100,000"></div>
         <div class="field" style="flex:0; align-self:flex-end;">
           <button class="ghost" id="add-saving-btn">+ 적금 추가</button>
         </div>
       </div>
+      <div class="field-error" id="saving-error" style="display:none;"></div>
+      <div class="hint">추가하면 바로 저장돼요.</div>
     </div>
   </section>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-overlay">
@@ -1032,10 +1131,13 @@
 "use strict";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, onSnapshot,
-  collection, addDoc, updateDoc, deleteDoc, serverTimestamp
+  getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+  getRedirectResult, signOut, connectAuthEmulator, signInWithEmailAndPassword, signInAnonymously
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, getDocFromServer, onSnapshot, collection, addDoc, deleteDoc,
+  serverTimestamp, runTransaction, connectFirestoreEmulator
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 var firebaseConfig = {
@@ -1047,12 +1149,38 @@ var firebaseConfig = {
   appId: "1:565673175968:web:f81de481d35fa4b3cfd2c5"
 };
 
+/* 로컬 테스트 전용: localhost에서 주소 뒤에 ?emulator 를 붙여 열면 Firebase Emulator(내 컴퓨터의 가짜 서버)에 연결.
+   demo- 프로젝트 ID라서 실제 서버 데이터에는 절대 접근하지 않음. 배포된 사이트(github.io)에서는 동작하지 않음. */
+var USE_EMULATOR = (location.hostname === "localhost" || location.hostname === "127.0.0.1") &&
+  /[?&]emulator(=|&|$)/.test(location.search);
+if(USE_EMULATOR){
+  firebaseConfig = Object.assign({}, firebaseConfig, { projectId: "demo-budget", authDomain: "demo-budget.firebaseapp.com" });
+}
+
 var firebaseApp = initializeApp(firebaseConfig);
 var auth = getAuth(firebaseApp);
 var db = getFirestore(firebaseApp);
+if(USE_EMULATOR){
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+}
+
+var SALARY_COL = "budget_salaryProfiles";
+var ASSET_COL = "budget_assets";
+var MEMBER_COL = "budget_members"; // 승인된 계정 목록 (문서 ID = Firebase Auth UID). 콘솔에서만 추가/삭제.
+
+/* 로그인 방식
+   - "anonymous": 예전과 같은 익명 로그인 (Firebase 콘솔 설정 전 임시 사용. 링크만 알면 누구나 열 수 있어 보안 없음)
+   - "member"   : Google 로그인 + budget_members 승인 계정만 사용 (README "보안 설정 절차" 완료 후 이 값으로 바꿔서 배포)
+   로컬 테스트(?emulator)에서는 기본 "member", 주소에 &auth=anonymous 를 붙이면 익명 모드. */
+var AUTH_MODE = "anonymous";
+if(USE_EMULATOR){
+  AUTH_MODE = /[?&]auth=anonymous(&|$)/.test(location.search) ? "anonymous" : "member";
+}
 
 var statusEl = document.getElementById("status");
 
+/* ---------- 공통 유틸 ---------- */
 function fmt(n){
   n = Number(n) || 0;
   return n.toLocaleString("ko-KR") + "원";
@@ -1110,6 +1238,28 @@ function setMoneyValue(el, n){
 }
 document.querySelectorAll("input.money-input").forEach(attachMoneyFormatting);
 
+function escapeHtml(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+  });
+}
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function clone(v){
+  return v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+}
+// 키 순서와 무관하게 비교하기 위한 정규 문자열 (Firestore는 맵 키 순서를 보장하지 않음)
+function canon(v){
+  if(Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+  if(v && typeof v === "object"){
+    return "{" + Object.keys(v).filter(function(k){ return v[k] !== undefined; }).sort().map(function(k){
+      return JSON.stringify(k) + ":" + canon(v[k]);
+    }).join(",") + "}";
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+
 /* ---------- 탭 전환 ---------- */
 document.querySelectorAll("nav.tabs button").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -1121,38 +1271,54 @@ document.querySelectorAll("nav.tabs button").forEach(function(btn){
   });
 });
 
-/* ---------- 월급 계산 ---------- */
-var currentPerson = "minhyun";
-var salaryCache = {}; // minhyun: { salary, payday, cards:[{id,name,bank,amount}], fixedGiup:[{id,name,amount}], fixedNh:[{id,name,amount}] }
-                       // minyoung: { salary, payday, fixedItems:[{name,amount}] }
-var installmentsCache = {}; // personId -> [{id,name,monthlyAmount,totalInstallments,anchorMonth,anchorInstallment,enabled}] (월과 무관하게 공유)
-var fixedCache = {}; // personId -> { fixedGiup, fixedNh, cardFixedKb, cardFixedHyundai } 또는 { fixedItems } (월과 무관한 전역 기본값)
-var pendingAmountChanges = {}; // itemId -> { person, listKey, name, newAmount } (저장 누르기 전까지 임시 보관, 저장 시 전체/이번달만 선택)
+/* ---------- 데이터 구조 ----------
+   사람(person)마다 Firestore 문서 2~3개를 사용 (문서 ID는 기존과 동일):
+   - month : budget_salaryProfiles/{person}_{yyyy-mm}  → salary, cards, fixedOverrides (공동자산은 fixedOverrides만)
+   - fixed : budget_salaryProfiles/{person}_fixed      → 고정금 목록(전역 기본값)
+   - inst  : budget_salaryProfiles/minhyun_installments → 카드 할부 (민현만)
+   server = 서버에서 받은 최신 값, base = 편집을 시작한 시점의 서버 값, work = 화면에서 편집 중인 값.
+   work와 base가 다르면 "미저장 변경"이고, 저장 전까지 서버 변경(onSnapshot)이 work를 덮어쓰지 않음. */
+var PERSONS = ["minhyun", "minyoung", "joint"];
+var PERSON_LABEL = { minhyun: "민현", minyoung: "민영", joint: "공동자산" };
+var KINDS_FOR = { minhyun: ["month", "fixed", "inst"], minyoung: ["month", "fixed"], joint: ["month", "fixed"] };
+var FIXED_KEYS = {
+  minhyun: ["fixedGiup", "fixedNh", "cardFixedKb", "cardFixedHyundai"],
+  minyoung: ["fixedItems", "cardFixedHyundai", "cardFixedWoori"],
+  joint: ["livingItems"]
+};
+var LIST_LABEL = {
+  fixedGiup: "기업은행 고정금", fixedNh: "농협은행 고정금", cardFixedKb: "KB카드 고정금",
+  cardFixedHyundai: "현대카드 고정금", fixedItems: "고정비", cardFixedWoori: "우리카드 고정금",
+  livingItems: "생활비 사용 계획"
+};
 // 민영 월급분석의 고정금(카드) 목록 — 카드별로 따로 관리 (minyoung_fixed 문서 안)
 var MY_CARD_FIXED = [
   { key: "hyundai", listKey: "cardFixedHyundai", label: "현대카드" },
   { key: "woori", listKey: "cardFixedWoori", label: "우리카드" }
 ];
 
-function computeEffectiveList(personId, listKey){
-  var raw = (fixedCache[personId] && fixedCache[personId][listKey]) || [];
-  var overrides = (salaryCache[personId] && salaryCache[personId].fixedOverrides) || {};
-  return raw.map(function(item){
-    var merged = overrides[item.id] ? Object.assign({}, item, overrides[item.id]) : Object.assign({}, item);
-    var pending = pendingAmountChanges[item.id];
-    if(pending && pending.listKey === listKey) merged.amount = pending.newAmount;
-    return merged;
-  });
-}
+var currentPerson = "minhyun";
+var currentMonth = todayYearMonth(); // "YYYY-MM"
+var authorized = false;
 
-/* ---------- 월 선택 ---------- */
+var server = { month: {}, fixed: {}, inst: {} };
+var base = { month: {}, fixed: {}, inst: {} };
+var work = { month: {}, fixed: {}, inst: {} };
+var pendingAmountChanges = {}; // itemId -> { person, listKey, name, oldAmount, newAmount } (저장 시 전체/이번달만 선택)
+var scopeChoices = {};         // itemId -> "all" | "month" (저장 실패 후 다시 열면 이전 선택 유지)
+var conflict = {};             // person -> true : 편집 중 다른 기기에서 서버 값이 바뀜
+var conflictAck = {};          // person -> true : "내 변경 유지"를 선택함
+var overwriteBaseline = {};    // person -> 비교 화면에서 확인한 시점의 서버 값 (그 이후 또 바뀌면 다시 막음)
+var saving = false;
+var savingPersons = [];
+
+var monthUnsubs = {};
+var otherUnsubs = [];
+
 function todayYearMonth(){
   var d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
 }
-var currentMonth = todayYearMonth(); // "YYYY-MM"
-var salaryUnsubs = {}; // personId -> unsubscribe fn
-
 function monthDocId(personId, month){
   return personId + "_" + month;
 }
@@ -1168,203 +1334,6 @@ function shiftMonth(month, delta){
   while(m > 12){ m -= 12; y += 1; }
   return y + "-" + String(m).padStart(2, "0");
 }
-function renderMonthLabel(){
-  document.getElementById("month-label").textContent = formatMonthLabel(currentMonth);
-}
-function changeMonth(newMonth){
-  closeEditModal();
-  var hadPending = Object.keys(pendingAmountChanges).length > 0;
-  pendingAmountChanges = {}; // 저장 안 한 금액 수정은 달을 넘어가면 그 달 것이 아니게 되므로 버림 (다른 달에 잘못 반영되는 걸 방지)
-  currentMonth = newMonth;
-  renderMonthLabel();
-  ["minhyun", "minyoung", "joint"].forEach(function(personId){
-    if(salaryUnsubs[personId]) salaryUnsubs[personId]();
-    subscribeSalary(personId);
-  });
-  renderSalary();
-  if(hadPending) flashStatus("저장하지 않은 금액 수정은 달 이동 시 취소됩니다", false);
-}
-document.getElementById("month-prev-btn").addEventListener("click", function(){
-  changeMonth(shiftMonth(currentMonth, -1));
-});
-document.getElementById("month-next-btn").addEventListener("click", function(){
-  changeMonth(shiftMonth(currentMonth, 1));
-});
-renderMonthLabel();
-
-function uid(){
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-document.querySelectorAll("#person-tabs button").forEach(function(btn){
-  btn.addEventListener("click", function(){
-    closeEditModal();
-    document.querySelectorAll("#person-tabs button").forEach(function(b){ b.classList.remove("active"); });
-    btn.classList.add("active");
-    currentPerson = btn.getAttribute("data-person");
-    document.getElementById("panel-minhyun").style.display = currentPerson === "minhyun" ? "" : "none";
-    document.getElementById("panel-minyoung").style.display = currentPerson === "minyoung" ? "" : "none";
-    document.getElementById("panel-joint").style.display = currentPerson === "joint" ? "" : "none";
-    document.getElementById("minhyun-section-tabs").style.display = currentPerson === "minhyun" ? "" : "none";
-    document.getElementById("minyoung-section-tabs").style.display = currentPerson === "minyoung" ? "" : "none";
-    document.getElementById("salary-field-row").style.display = currentPerson === "joint" ? "none" : "";
-    renderSalary();
-  });
-});
-
-document.querySelectorAll("#minhyun-section-tabs button").forEach(function(btn){
-  btn.addEventListener("click", function(){
-    closeEditModal();
-    document.querySelectorAll("#minhyun-section-tabs button").forEach(function(b){ b.classList.remove("active"); });
-    btn.classList.add("active");
-    var section = btn.getAttribute("data-section");
-    document.getElementById("minhyun-calc-section").style.display = section === "calc" ? "" : "none";
-    document.getElementById("minhyun-analysis-section").style.display = section === "analysis" ? "" : "none";
-    renderSalary();
-  });
-});
-
-document.querySelectorAll("#minyoung-section-tabs button").forEach(function(btn){
-  btn.addEventListener("click", function(){
-    closeEditModal();
-    document.querySelectorAll("#minyoung-section-tabs button").forEach(function(b){ b.classList.remove("active"); });
-    btn.classList.add("active");
-    var section = btn.getAttribute("data-section");
-    document.getElementById("minyoung-calc-section").style.display = section === "calc" ? "" : "none";
-    document.getElementById("minyoung-analysis-section").style.display = section === "analysis" ? "" : "none";
-    renderSalary();
-  });
-});
-
-/* ---------- 항목 관리 모달 ---------- */
-var modalHomeParent = null;
-var modalHomeNext = null;
-
-var modalMode = null; // "static" | "dynamic"
-
-function openEditModal(title, contentId){
-  modalMode = "static";
-  var contentEl = document.getElementById(contentId);
-  modalHomeParent = contentEl.parentNode;
-  modalHomeNext = contentEl.nextSibling;
-  contentEl.style.display = "";
-  document.getElementById("modal-title").textContent = title;
-  document.getElementById("modal-body").innerHTML = "";
-  document.getElementById("modal-body").appendChild(contentEl);
-  document.getElementById("modal-overlay").classList.add("open");
-}
-function openDynamicModal(title, bodyHtml){
-  modalMode = "dynamic";
-  document.getElementById("modal-title").textContent = title;
-  document.getElementById("modal-body").innerHTML = bodyHtml;
-  document.getElementById("modal-overlay").classList.add("open");
-}
-function closeEditModal(){
-  if(modalMode === "static"){
-    var body = document.getElementById("modal-body");
-    var contentEl = body.firstElementChild;
-    if(contentEl){
-      contentEl.style.display = "none";
-      if(modalHomeParent) modalHomeParent.insertBefore(contentEl, modalHomeNext);
-    }
-  } else if(modalMode === "dynamic"){
-    document.getElementById("modal-body").innerHTML = "";
-  }
-  document.getElementById("modal-overlay").classList.remove("open");
-  modalHomeParent = null;
-  modalHomeNext = null;
-  modalMode = null;
-}
-document.getElementById("modal-close-btn").addEventListener("click", closeEditModal);
-document.getElementById("modal-overlay").addEventListener("click", function(e){
-  if(e.target === this) closeEditModal();
-});
-
-document.getElementById("add-giup-btn-calc").addEventListener("click", function(){
-  openEditModal("기업은행 고정금 추가", "giup-add-content");
-});
-document.getElementById("add-nh-btn-calc").addEventListener("click", function(){
-  openEditModal("농협은행 고정금 추가", "nh-add-content");
-});
-document.getElementById("add-giup-btn-analysis").addEventListener("click", function(){
-  openEditModal("기업은행 고정금 추가", "giup-add-content");
-});
-document.getElementById("add-nh-btn-analysis").addEventListener("click", function(){
-  openEditModal("농협은행 고정금 추가", "nh-add-content");
-});
-document.getElementById("add-kb-btn-open").addEventListener("click", function(){
-  openEditModal("KB카드 고정금 추가", "kb-add-content");
-});
-document.getElementById("add-hyundai-btn-open").addEventListener("click", function(){
-  openEditModal("현대카드 고정금 추가", "hyundai-add-content");
-});
-document.getElementById("add-inst-btn-open").addEventListener("click", function(){
-  openEditModal("카드 할부 추가", "inst-add-content");
-});
-document.getElementById("add-item-btn-open").addEventListener("click", function(){
-  openEditModal("고정비 / 차감 항목 추가", "minyoung-add-content");
-});
-document.getElementById("add-my-cash-btn-open").addEventListener("click", function(){
-  openEditModal("고정금(현금) 항목 추가", "minyoung-add-content");
-});
-MY_CARD_FIXED.forEach(function(c){
-  document.getElementById("add-my-" + c.key + "-btn-open").addEventListener("click", function(){
-    openEditModal(c.label + " 고정금 추가", "my-" + c.key + "-add-content");
-  });
-  document.getElementById("add-my-" + c.key + "-btn").addEventListener("click", function(){
-    var nameEl = document.getElementById("new-my-" + c.key + "-name");
-    var amtEl = document.getElementById("new-my-" + c.key + "-amount");
-    var name = nameEl.value.trim();
-    var amount = parseAmount(amtEl.value);
-    if(!name) return;
-    fixedCache["minyoung"] = fixedCache["minyoung"] || defaultFixed("minyoung");
-    fixedCache["minyoung"][c.listKey] = fixedCache["minyoung"][c.listKey] || [];
-    fixedCache["minyoung"][c.listKey].push({ id: uid(), name: name, amount: amount, enabled: true });
-    nameEl.value = ""; amtEl.value = "";
-    renderSalary();
-  });
-});
-document.getElementById("add-living-btn-open").addEventListener("click", function(){
-  openEditModal("생활비 사용 계획 추가", "joint-living-add-content");
-});
-
-function emptySalary(personId){
-  if(personId === "joint") return { fixedOverrides: {} };
-  if(personId === "minhyun"){
-    return {
-      salary: 0,
-      cards: [
-        { id: uid(), name: "신용카드(웰스)", bank: "농협", amount: 0 },
-        { id: uid(), name: "신용카드(현대)", bank: "농협", amount: 0 }
-      ],
-      fixedOverrides: {}
-    };
-  }
-  return {
-    salary: 0,
-    cards: [
-      { id: uid(), name: "신용카드(현대카드)", amount: 0 },
-      { id: uid(), name: "신용카드(우리카드)", amount: 0 }
-    ],
-    fixedOverrides: {}
-  };
-}
-
-/* 고정금 목록(기업/농협/KB/현대카드/민영고정비): 월 문서와 별개인 전역 문서에 저장.
-   달마다 다르게 하고 싶은 항목만 fixedOverrides에 {amount, enabled} 형태로 저장해서 그 달에만 반영.
-   아래는 Firestore에 아직 저장된 게 없을 때(최초 1회)만 쓰이는 빈 기본값입니다 — 실제 값은 전부 Firestore에 있습니다. */
-function defaultFixed(personId){
-  if(personId === "minhyun"){
-    return { fixedGiup: [], fixedNh: [], cardFixedKb: [], cardFixedHyundai: [] };
-  }
-  if(personId === "joint") return { livingItems: [] };
-  return { fixedItems: [], cardFixedHyundai: [], cardFixedWoori: [] };
-}
-
-/* 카드 할부: 월별 문서와 별개로 저장 (월을 넘나들어도 같은 데이터, 회차는 anchorMonth 기준으로 계산) */
-function defaultInstallments(personId){
-  return [];
-}
 function monthIndex(m){
   var p = m.split("-");
   return parseInt(p[0], 10) * 12 + parseInt(p[1], 10);
@@ -1375,16 +1344,346 @@ function computeCurrentInstallment(item, viewMonth){
   return (Number(item.anchorInstallment) || 0) + diff;
 }
 
-function renderSalary(){
-  if(currentPerson === "joint"){
-    renderJoint();
+function monthRef(p, month){ return doc(db, SALARY_COL, monthDocId(p, month)); }
+function fixedRef(p){ return doc(db, SALARY_COL, p + "_fixed"); }
+function instRef(){ return doc(db, SALARY_COL, "minhyun_installments"); }
+
+/* 아직 저장된 적 없는 달의 기본값. 카드 ID를 고정값으로 둬서, 서버 응답이 다시 와도 같은 값으로 비교되게 함. */
+function emptyMonth(p){
+  if(p === "joint") return { fixedOverrides: {} };
+  var defs = p === "minhyun"
+    ? [{ name: "신용카드(웰스)", bank: "농협" }, { name: "신용카드(현대)", bank: "농협" }]
+    : [{ name: "신용카드(현대카드)" }, { name: "신용카드(우리카드)" }];
+  return {
+    salary: 0,
+    cards: defs.map(function(d, i){
+      var c = { id: p + "-default-card-" + (i + 1), name: d.name, amount: 0 };
+      if(d.bank) c.bank = d.bank;
+      return c;
+    }),
+    fixedOverrides: {}
+  };
+}
+function normalizeMonth(p, data){
+  if(!data) return emptyMonth(p);
+  var out = { fixedOverrides: clone(data.fixedOverrides || {}) };
+  if(p !== "joint"){
+    out.salary = Number(data.salary) || 0;
+    out.cards = clone(Array.isArray(data.cards) ? data.cards : []);
+  }
+  return out;
+}
+function normalizeFixed(p, data){
+  var out = {};
+  FIXED_KEYS[p].forEach(function(k){ out[k] = clone(data && Array.isArray(data[k]) ? data[k] : []); });
+  return out;
+}
+function normalizeInst(data){
+  return { installments: clone(data && Array.isArray(data.installments) ? data.installments : []) };
+}
+function normalizeKind(kind, p, data){
+  if(kind === "month") return normalizeMonth(p, data);
+  if(kind === "fixed") return normalizeFixed(p, data);
+  return normalizeInst(data);
+}
+
+function isLoaded(p){
+  return KINDS_FOR[p].every(function(k){ return server[k][p] != null && work[k][p] != null; });
+}
+function allReady(){ return authorized && PERSONS.every(isLoaded); }
+function canEdit(p){ return authorized && !saving && allReady(); }
+
+function personPendingIds(p){
+  return Object.keys(pendingAmountChanges).filter(function(id){ return pendingAmountChanges[id].person === p; });
+}
+function kindTouched(p, k){
+  if(work[k][p] == null) return false;
+  if(k !== "inst" && personPendingIds(p).length) return true;
+  return canon(work[k][p]) !== canon(base[k][p]);
+}
+function isDirty(p){
+  return KINDS_FOR[p].some(function(k){ return kindTouched(p, k); });
+}
+function dirtyPersons(){ return PERSONS.filter(isDirty); }
+function labelsOf(persons){ return persons.map(function(p){ return PERSON_LABEL[p]; }).join(", "); }
+
+function getMonthWork(p){ return work.month[p] || emptyMonth(p); }
+function getFixedList(p, listKey){
+  var f = work.fixed[p];
+  return (f && f[listKey]) || [];
+}
+function getInstallments(){
+  var w = work.inst.minhyun;
+  return (w && w.installments) || [];
+}
+function computeEffectiveList(p, listKey){
+  var overrides = getMonthWork(p).fixedOverrides || {};
+  return getFixedList(p, listKey).map(function(item){
+    var merged = Object.assign({}, item, overrides[item.id] || {});
+    var pending = pendingAmountChanges[item.id];
+    if(pending && pending.listKey === listKey) merged.amount = pending.newAmount;
+    return merged;
+  });
+}
+function sumEnabled(items){
+  return (items || []).reduce(function(s, x){
+    return s + (x.enabled !== false ? (Number(x.amount) || 0) : 0);
+  }, 0);
+}
+function isInstallmentActive(item){
+  var total = Number(item.totalInstallments) || 0;
+  var current = computeCurrentInstallment(item, currentMonth);
+  return (item.enabled !== false) && total > 0 && current >= 1 && current <= total;
+}
+function sumActiveInstallments(items){
+  return (items || []).reduce(function(s, x){
+    return s + (isInstallmentActive(x) ? (Number(x.monthlyAmount) || 0) : 0);
+  }, 0);
+}
+
+/* ---------- 편집 동작 (모두 work에만 반영, 저장 버튼을 눌러야 서버에 씀) ---------- */
+function findItem(p, listKey, id){
+  return getFixedList(p, listKey).find(function(x){ return x.id === id; });
+}
+function setItemAmount(p, listKey, id, amount){
+  if(!canEdit(p)) return;
+  var item = findItem(p, listKey, id);
+  if(!item) return;
+  var existing = pendingAmountChanges[id];
+  var oldAmount;
+  if(existing){
+    oldAmount = existing.oldAmount;
+  } else {
+    var ov = (getMonthWork(p).fixedOverrides || {})[id];
+    oldAmount = Number((ov && ov.amount !== undefined) ? ov.amount : item.amount) || 0;
+  }
+  if(amount === oldAmount){
+    delete pendingAmountChanges[id];
+  } else {
+    pendingAmountChanges[id] = { person: p, listKey: listKey, name: item.name, oldAmount: oldAmount, newAmount: amount };
+  }
+  refreshComputed();
+}
+function setItemField(p, listKey, id, field, value){
+  if(!canEdit(p)) return;
+  var item = findItem(p, listKey, id);
+  if(!item) return;
+  item[field] = value;
+  if(field === "name" && pendingAmountChanges[id]) pendingAmountChanges[id].name = value;
+  refreshComputed();
+}
+function setItemEnabled(p, listKey, id, enabled){
+  if(!canEdit(p)) return;
+  var m = work.month[p];
+  m.fixedOverrides = m.fixedOverrides || {};
+  var ov = Object.assign({}, m.fixedOverrides[id], { enabled: enabled });
+  m.fixedOverrides[id] = ov;
+  // 원래 상태로 되돌린 경우 서버에 있던 그대로 복원 (불필요한 미저장 표시 방지)
+  var baseOv = ((base.month[p] || {}).fixedOverrides || {})[id];
+  var item = findItem(p, listKey, id);
+  var baseEnabled = (baseOv && baseOv.enabled !== undefined) ? baseOv.enabled : (item ? item.enabled !== false : true);
+  var baseAmount = baseOv ? baseOv.amount : undefined;
+  if(enabled === baseEnabled && ov.amount === baseAmount){
+    if(baseOv) m.fixedOverrides[id] = clone(baseOv);
+    else delete m.fixedOverrides[id];
+  }
+  requestRender();
+}
+function deleteItem(p, listKey, id){
+  if(!canEdit(p)) return;
+  work.fixed[p][listKey] = getFixedList(p, listKey).filter(function(x){ return x.id !== id; });
+  delete pendingAmountChanges[id];
+  delete scopeChoices[id];
+  requestRender();
+}
+function reorderArray(arr, draggedId, targetId){
+  var fromIdx = arr.findIndex(function(x){ return x.id === draggedId; });
+  var toIdx = arr.findIndex(function(x){ return x.id === targetId; });
+  if(fromIdx === -1 || toIdx === -1) return;
+  var moved = arr.splice(fromIdx, 1)[0];
+  arr.splice(toIdx, 0, moved);
+}
+function reorderItem(p, listKey, draggedId, targetId){
+  if(!canEdit(p)) return;
+  reorderArray(work.fixed[p][listKey], draggedId, targetId);
+  requestRender();
+}
+function addItem(p, listKey, item){
+  if(!canEdit(p)) return false;
+  work.fixed[p][listKey] = getFixedList(p, listKey).concat([item]);
+  requestRender();
+  return true;
+}
+function findCard(p, cardId){
+  return (getMonthWork(p).cards || []).find(function(c){ return c.id === cardId; });
+}
+function setCardField(p, cardId, field, value, rerender){
+  if(!canEdit(p)) return;
+  var c = findCard(p, cardId);
+  if(!c) return;
+  c[field] = value;
+  if(rerender) requestRender(); else refreshComputed();
+}
+function addCard(p, card){
+  if(!canEdit(p)) return false;
+  work.month[p].cards = (work.month[p].cards || []).concat([card]);
+  requestRender();
+  return true;
+}
+function deleteCard(p, cardId){
+  if(!canEdit(p)) return;
+  work.month[p].cards = (work.month[p].cards || []).filter(function(c){ return c.id !== cardId; });
+  requestRender();
+}
+function updateInstallment(id, patch, rerender){
+  if(!canEdit("minhyun")) return null;
+  var item = getInstallments().find(function(x){ return x.id === id; });
+  if(!item) return null;
+  Object.assign(item, patch);
+  if(rerender) requestRender(); else refreshComputed();
+  return item;
+}
+
+/* ---------- 화면 다시 그리기 ----------
+   입력 중인 칸(포커스)과 한글 조합은 건드리지 않음:
+   - 값만 바뀔 때: refreshComputed()가 같은 항목의 다른 화면(월급분배/월급분석/추가창) 값과 합계만 갱신
+   - 행 추가/삭제/순서/체크 등 구조가 바뀔 때: requestRender()로 다시 그리되 포커스·커서 위치 복원,
+     한글 조합 중이면 조합이 끝난 뒤 다시 그림 */
+var composing = false;
+var renderDeferred = false;
+// 지금 사용자가 타이핑 중인 칸. 이 칸만 화면 갱신에서 건너뜀 (포커스만 있고 입력 전이면 서버/새 달 값으로 갱신)
+var editingKey = null;
+document.addEventListener("input", function(e){
+  if(e.target && e.target.dataset && e.target.dataset.focusKey) editingKey = e.target.dataset.focusKey;
+}, true);
+document.addEventListener("focusout", function(e){
+  if(e.target && e.target.dataset && e.target.dataset.focusKey === editingKey) editingKey = null;
+}, true);
+function isBeingEdited(el){
+  return el === document.activeElement && !!editingKey && el.dataset.focusKey === editingKey;
+}
+document.addEventListener("compositionstart", function(){ composing = true; });
+document.addEventListener("compositionend", function(){
+  composing = false;
+  if(renderDeferred){ renderDeferred = false; requestRender(); }
+});
+
+function requestRender(){
+  if(!authorized) return;
+  if(composing){
+    renderDeferred = true;
+    refreshComputed();
     return;
   }
-  var data = salaryCache[currentPerson] || emptySalary(currentPerson);
-  setMoneyValue(document.getElementById("salary-amount"), data.salary);
-  if(currentPerson === "minhyun") renderMinhyun(data);
-  else renderMinyoung(data);
+  var active = document.activeElement;
+  var key = active && active.dataset ? active.dataset.focusKey : null;
+  var selStart = null, selEnd = null;
+  if(key){
+    try { selStart = active.selectionStart; selEnd = active.selectionEnd; } catch(_){}
+  }
+  renderSalary();
+  if(key){
+    var el = document.querySelector('[data-focus-key="' + CSS.escape(key) + '"]');
+    if(el && el !== document.activeElement){
+      el.focus({ preventScroll: true });
+      try { if(selStart != null) el.setSelectionRange(selStart, selEnd); } catch(_){}
+    }
+  }
+}
+
+function readBound(bind){
+  var parts = bind.split("|");
+  var kind = parts[0], p = parts[1];
+  if(kind === "salary") return getMonthWork(p).salary;
+  if(kind === "item"){
+    var listKey = parts[2], id = parts[3], field = parts[4];
+    var item = computeEffectiveList(p, listKey).find(function(x){ return x.id === id; });
+    if(!item) return undefined;
+    if(field === "enabled") return item.enabled !== false;
+    return item[field];
+  }
+  if(kind === "card"){
+    var card = findCard(p, parts[3]);
+    return card ? card[parts[4]] : undefined;
+  }
+  if(kind === "inst"){
+    var inst = getInstallments().find(function(x){ return x.id === parts[3]; });
+    if(!inst) return undefined;
+    var f = parts[4];
+    if(f === "enabled") return inst.enabled !== false;
+    if(f === "current") return computeCurrentInstallment(inst, currentMonth);
+    return inst[f];
+  }
+  return undefined;
+}
+function rowEnabled(rowKey){
+  var parts = rowKey.split("|");
+  if(parts[0] === "inst"){
+    var inst = getInstallments().find(function(x){ return x.id === parts[3]; });
+    return inst ? isInstallmentActive(inst) : true;
+  }
+  var item = computeEffectiveList(parts[1], parts[2]).find(function(x){ return x.id === parts[3]; });
+  return item ? item.enabled !== false : true;
+}
+function syncBoundInputs(){
+  document.querySelectorAll("[data-bind]").forEach(function(el){
+    if(isBeingEdited(el)) return;
+    var v = readBound(el.dataset.bind);
+    if(v === undefined) return;
+    if(el.type === "checkbox"){
+      if(el.checked !== !!v) el.checked = !!v;
+      return;
+    }
+    var s;
+    if(el.classList.contains("money-input")) s = Number(v) ? Number(v).toLocaleString("ko-KR") : "";
+    else if(el.classList.contains("day-input")) s = Number(v) ? String(v) : "";
+    else s = v == null ? "" : String(v);
+    if(el.value !== s) el.value = s;
+  });
+  document.querySelectorAll("tr[data-row]").forEach(function(tr){
+    tr.classList.toggle("disabled-row", !rowEnabled(tr.dataset.row));
+  });
+}
+function updateTotals(){
+  document.querySelectorAll("[data-sum-list]").forEach(function(el){
+    var parts = el.dataset.sumList.split("|");
+    el.textContent = fmtPlain(sumEnabled(computeEffectiveList(parts[0], parts[1])));
+  });
+  if(document.querySelector("[data-sum-bank]")){
+    var groups = {};
+    groupByBank(computeEffectiveList("minyoung", "fixedItems")).forEach(function(g){ groups[g.bank] = sumEnabled(g.items); });
+    document.querySelectorAll("[data-sum-bank]").forEach(function(el){
+      el.textContent = fmtPlain(groups[el.dataset.sumBank] || 0);
+    });
+  }
+  document.querySelectorAll("[data-sum-inst]").forEach(function(el){
+    el.textContent = fmtPlain(sumActiveInstallments(getInstallments()));
+  });
+}
+function refreshComputed(){
+  if(!authorized) return;
+  syncBoundInputs();
+  updateTotals();
+  recomputeMinhyunSummary();
+  recomputeMinhyunAnalysis();
+  recomputeMinyoungSummary();
+  recomputeMinyoungAnalysis();
   renderJointAssets();
+  updateChrome();
+}
+
+function renderSalary(){
+  if(!authorized) return;
+  var salaryInput = document.getElementById("salary-amount");
+  if(currentPerson !== "joint"){
+    salaryInput.dataset.bind = "salary|" + currentPerson;
+    salaryInput.dataset.focusKey = "salary|" + currentPerson;
+    if(!isBeingEdited(salaryInput)) setMoneyValue(salaryInput, getMonthWork(currentPerson).salary);
+  }
+  renderMinhyun();
+  renderMinyoung();
+  renderJoint();
+  refreshComputed();
 }
 
 // 공동자산의 민현 남는 생활비 = 월급분석 탭의 남는 생활비 (고정금현금+고정금카드+할부 반영)
@@ -1393,7 +1692,7 @@ function computeMinhyunRemaining(){
 }
 
 function computeMinyoungRemaining(){
-  var data = salaryCache["minyoung"] || emptySalary("minyoung");
+  var data = getMonthWork("minyoung");
   var cardsTotal = (data.cards || []).reduce(function(s, c){ return s + (Number(c.amount) || 0); }, 0);
   var fixedTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
   var salary = Number(data.salary) || 0;
@@ -1414,14 +1713,10 @@ function renderJointAssets(){
   recomputeJointLiving();
 }
 
-/* 생활비 사용 계획: 둘이 합쳐 쓸 수 있는 생활비 - 항목 합계 = 차액 (금액 입력하는 즉시 다시 계산) */
+/* 생활비 사용 계획: 둘이 합쳐 쓸 수 있는 생활비 - 항목 합계 = 차액 */
 function renderJoint(){
-  fixedCache["joint"] = fixedCache["joint"] || defaultFixed("joint");
-  var handlers = makeFixedListHandlers("joint", "livingItems", ["joint-living-total", "modal-living-total"], [recomputeJointLiving]);
-  var list = computeEffectiveList("joint", "livingItems");
-  renderEditableList("joint-living-body", "joint-living-total", list, handlers);
-  renderEditableList("modal-living-body", "modal-living-total", list, handlers);
-  renderJointAssets();
+  renderEditableList("joint-living-body", "joint-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems");
+  renderEditableList("modal-living-body", "modal-living-total", computeEffectiveList("joint", "livingItems"), "joint", "livingItems");
 }
 
 function recomputeJointLiving(){
@@ -1463,216 +1758,123 @@ function attachRowDrag(tr, itemId, onReorder){
   });
 }
 
-function reorderArray(arr, draggedId, targetId){
-  var fromIdx = arr.findIndex(function(x){ return x.id === draggedId; });
-  var toIdx = arr.findIndex(function(x){ return x.id === targetId; });
-  if(fromIdx === -1 || toIdx === -1) return;
-  var moved = arr.splice(fromIdx, 1)[0];
-  arr.splice(toIdx, 0, moved);
-}
-
-function renderEditableList(bodyId, totalId, items, handlers, options){
+/* 고정금 표 한 개 그리기. 같은 항목이 여러 표(월급분배/월급분석/추가창)에 나와도
+   data-bind로 같은 데이터를 가리키게 해서 한 곳을 고치면 나머지도 같이 갱신됨. */
+function renderEditableList(bodyId, totalId, items, p, listKey, options){
   var showDay = !!(options && options.showDay);
   var showAccount = !!(options && options.showAccount);
   var tbody = document.getElementById(bodyId);
   tbody.innerHTML = "";
-  var total = 0;
   (items || []).forEach(function(item){
-    var enabled = item.enabled !== false;
-    if(enabled) total += Number(item.amount) || 0;
+    var bindBase = "item|" + p + "|" + listKey + "|" + item.id + "|";
     var tr = document.createElement("tr");
-    if(!enabled) tr.className = "disabled-row";
+    tr.dataset.row = "item|" + p + "|" + listKey + "|" + item.id;
     var amountCellHtml = '<td' + (showAccount ? "" : ' class="num"') + '><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
     tr.innerHTML =
       '<td class="drag-cell"><span class="drag-handle">⠿</span></td>' +
-      '<td class="check-cell"><input type="checkbox"' + (enabled ? " checked" : "") + '></td>' +
-      '<td><input type="text" class="name-input" value="' + escapeHtml(item.name) + '"></td>' +
+      '<td class="check-cell"><input type="checkbox"></td>' +
+      '<td><input type="text" class="name-input"></td>' +
       (showDay ? '<td class="num"><input type="text" inputmode="numeric" class="day-input" maxlength="2" placeholder="일"></td>' : "") +
       (showAccount ? amountCellHtml : "") +
       (showAccount ?
-        '<td><input type="text" class="name-input account-input" value="' + escapeHtml(item.account || "") + '" placeholder="계좌번호"></td>' +
-        '<td><input type="text" class="name-input bank-input" value="' + escapeHtml(item.bank || "") + '" placeholder="은행"></td>'
+        '<td><input type="text" class="name-input account-input" placeholder="계좌번호"></td>' +
+        '<td><input type="text" class="name-input bank-input" placeholder="은행"></td>'
         : "") +
       (showAccount ? "" : amountCellHtml) +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
+    function bind(el, field){
+      el.dataset.bind = bindBase + field;
+      el.dataset.focusKey = bodyId + "|" + bindBase + field;
+    }
     var checkbox = tr.querySelector('input[type="checkbox"]');
     var nameInput = tr.querySelector('input.name-input');
     var amountInput = tr.querySelector('input.money-input');
+    bind(checkbox, "enabled");
+    bind(nameInput, "name");
+    bind(amountInput, "amount");
+    checkbox.checked = item.enabled !== false;
+    nameInput.value = item.name || "";
     setMoneyValue(amountInput, item.amount);
     attachMoneyFormatting(amountInput);
-    checkbox.addEventListener("change", function(){ handlers.onToggle(item.id, checkbox.checked); });
-    nameInput.addEventListener("change", function(){ handlers.onNameChange(item.id, nameInput.value.trim() || item.name); });
-    amountInput.addEventListener("input", function(){ handlers.onAmountChange(item.id, parseAmount(amountInput.value)); });
+    checkbox.addEventListener("change", function(){ setItemEnabled(p, listKey, item.id, checkbox.checked); });
+    nameInput.addEventListener("input", function(){
+      var v = nameInput.value.trim();
+      if(v) setItemField(p, listKey, item.id, "name", v);
+    });
+    nameInput.addEventListener("change", function(){
+      if(!nameInput.value.trim()){
+        var cur = findItem(p, listKey, item.id);
+        nameInput.value = cur ? cur.name : "";
+      }
+    });
+    amountInput.addEventListener("input", function(){ setItemAmount(p, listKey, item.id, parseAmount(amountInput.value)); });
     if(showDay){
       var dayInput = tr.querySelector("input.day-input");
+      bind(dayInput, "day");
       dayInput.value = item.day || "";
       dayInput.addEventListener("input", function(){
         var digits = dayInput.value.replace(/[^\d]/g, "").slice(0, 2);
         var num = digits ? parseInt(digits, 10) : 0;
         if(num > 31) num = 31;
         dayInput.value = num || "";
-        handlers.onDayChange(item.id, num);
+        setItemField(p, listKey, item.id, "day", num);
       });
     }
     if(showAccount){
       var accountInput = tr.querySelector("input.account-input");
       var bankInput = tr.querySelector("input.bank-input");
-      accountInput.addEventListener("change", function(){ handlers.onAccountChange(item.id, accountInput.value.trim()); });
-      bankInput.addEventListener("change", function(){ handlers.onBankChange(item.id, bankInput.value.trim()); });
+      bind(accountInput, "account");
+      bind(bankInput, "bank");
+      accountInput.value = item.account || "";
+      bankInput.value = item.bank || "";
+      accountInput.addEventListener("input", function(){ setItemField(p, listKey, item.id, "account", accountInput.value.trim()); });
+      bankInput.addEventListener("input", function(){ setItemField(p, listKey, item.id, "bank", bankInput.value.trim()); });
+      // 은행이 바뀌면 월급분석의 은행별 묶음이 달라지므로 입력을 마친 뒤 다시 그림
+      bankInput.addEventListener("change", function(){ requestRender(); });
     }
-    tr.querySelector("button.danger").addEventListener("click", function(){ handlers.onDelete(item.id); });
-    attachRowDrag(tr, item.id, handlers.onReorder);
+    tr.querySelector("button.danger").addEventListener("click", function(){ deleteItem(p, listKey, item.id); });
+    attachRowDrag(tr, item.id, function(draggedId, targetId){ reorderItem(p, listKey, draggedId, targetId); });
     tbody.appendChild(tr);
   });
-  document.getElementById(totalId).textContent = fmtPlain(total);
-  return total;
-}
-
-function sumEnabled(items){
-  return (items || []).reduce(function(s, x){
-    return s + (x.enabled !== false ? (Number(x.amount) || 0) : 0);
-  }, 0);
-}
-
-function makeFixedListHandlers(personId, arrayKey, totalIds, recomputeFns){
-  function rawList(){
-    fixedCache[personId] = fixedCache[personId] || defaultFixed(personId);
-    fixedCache[personId][arrayKey] = fixedCache[personId][arrayKey] || [];
-    return fixedCache[personId][arrayKey];
+  var totalEl = document.getElementById(totalId);
+  if(options && options.bank){
+    totalEl.dataset.sumBank = options.bank;
+  } else {
+    totalEl.dataset.sumList = p + "|" + listKey;
   }
-  function rawItem(id){
-    return rawList().find(function(x){ return x.id === id; });
-  }
-  return {
-    onDelete: function(id){
-      fixedCache[personId][arrayKey] = rawList().filter(function(x){ return x.id !== id; });
-      delete pendingAmountChanges[id];
-      renderSalary();
-    },
-    onToggle: function(id, checked){
-      var d = salaryCache[personId] || emptySalary(personId);
-      d.fixedOverrides = d.fixedOverrides || {};
-      d.fixedOverrides[id] = Object.assign({}, d.fixedOverrides[id], { enabled: checked });
-      salaryCache[personId] = d;
-      renderSalary();
-    },
-    onAmountChange: function(id, amount){
-      var item = rawItem(id);
-      if(!item) return;
-      var existingPending = pendingAmountChanges[id];
-      var oldAmount;
-      if(existingPending){
-        oldAmount = existingPending.oldAmount;
-      } else {
-        var overrides = (salaryCache[personId] && salaryCache[personId].fixedOverrides) || {};
-        var ov = overrides[id];
-        oldAmount = (ov && ov.amount !== undefined) ? ov.amount : item.amount;
-      }
-      if(amount === oldAmount){
-        delete pendingAmountChanges[id];
-      } else {
-        pendingAmountChanges[id] = { person: personId, listKey: arrayKey, name: item.name, oldAmount: oldAmount, newAmount: amount };
-      }
-      var effective = computeEffectiveList(personId, arrayKey);
-      var t = fmtPlain(sumEnabled(effective));
-      totalIds.forEach(function(elId){ var el = document.getElementById(elId); if(el) el.textContent = t; });
-      recomputeFns.forEach(function(fn){ fn(); });
-    },
-    onDayChange: function(id, day){
-      var item = rawItem(id);
-      if(item) item.day = day;
-    },
-    onNameChange: function(id, name){
-      var item = rawItem(id);
-      if(item) item.name = name;
-    },
-    onAccountChange: function(id, account){
-      var item = rawItem(id);
-      if(item) item.account = account;
-    },
-    onBankChange: function(id, bank){
-      var item = rawItem(id);
-      if(item) item.bank = bank;
-    },
-    onReorder: function(draggedId, targetId){
-      reorderArray(rawList(), draggedId, targetId);
-      renderSalary();
-    }
-  };
 }
 
-function renderMinhyun(data){
-  data.cards = data.cards || [];
-  data.fixedOverrides = data.fixedOverrides || {};
-  fixedCache["minhyun"] = fixedCache["minhyun"] || defaultFixed("minhyun");
-  var installments = installmentsCache["minhyun"] || [];
+function renderMinhyun(){
+  var data = getMonthWork("minhyun");
+  renderCardsQuickEntry("minhyun", "cards-quick-entry", data.cards || []);
+  renderCardsEditBody("minhyun", "cards-edit-body", data.cards || [], true);
 
-  renderCardsQuickEntry("minhyun", "cards-quick-entry", data.cards, recomputeMinhyunSummary);
-  renderCardsEditBody("minhyun", "cards-edit-body", data.cards, true);
+  ["fixed-giup-body", "af-fixed-giup-body", "modal-giup-body"].forEach(function(bodyId){
+    renderEditableList(bodyId, bodyId.replace("-body", "-total"), computeEffectiveList("minhyun", "fixedGiup"), "minhyun", "fixedGiup", { showDay: true });
+  });
+  ["fixed-nh-body", "af-fixed-nh-body", "modal-nh-body"].forEach(function(bodyId){
+    renderEditableList(bodyId, bodyId.replace("-body", "-total"), computeEffectiveList("minhyun", "fixedNh"), "minhyun", "fixedNh", { showDay: true });
+  });
+  renderEditableList("card-fixed-kb-body", "card-fixed-kb-total", computeEffectiveList("minhyun", "cardFixedKb"), "minhyun", "cardFixedKb", { showDay: true });
+  renderEditableList("modal-kb-body", "modal-kb-total", computeEffectiveList("minhyun", "cardFixedKb"), "minhyun", "cardFixedKb", { showDay: true });
+  renderEditableList("card-fixed-hyundai-body", "card-fixed-hyundai-total", computeEffectiveList("minhyun", "cardFixedHyundai"), "minhyun", "cardFixedHyundai", { showDay: true });
+  renderEditableList("modal-hyundai-body", "modal-hyundai-total", computeEffectiveList("minhyun", "cardFixedHyundai"), "minhyun", "cardFixedHyundai", { showDay: true });
 
-  var giupHandlers = makeFixedListHandlers("minhyun", "fixedGiup", ["fixed-giup-total", "af-fixed-giup-total", "modal-giup-total"], [recomputeMinhyunSummary, recomputeMinhyunAnalysis]);
-  var giupList = computeEffectiveList("minhyun", "fixedGiup");
-  renderEditableList("fixed-giup-body", "fixed-giup-total", giupList, giupHandlers, { showDay: true });
-  renderEditableList("af-fixed-giup-body", "af-fixed-giup-total", giupList, giupHandlers, { showDay: true });
-  renderEditableList("modal-giup-body", "modal-giup-total", giupList, giupHandlers, { showDay: true });
-
-  var nhHandlers = makeFixedListHandlers("minhyun", "fixedNh", ["fixed-nh-total", "af-fixed-nh-total", "modal-nh-total"], [recomputeMinhyunSummary, recomputeMinhyunAnalysis]);
-  var nhList = computeEffectiveList("minhyun", "fixedNh");
-  renderEditableList("fixed-nh-body", "fixed-nh-total", nhList, nhHandlers, { showDay: true });
-  renderEditableList("af-fixed-nh-body", "af-fixed-nh-total", nhList, nhHandlers, { showDay: true });
-  renderEditableList("modal-nh-body", "modal-nh-total", nhList, nhHandlers, { showDay: true });
-
-  var kbHandlers = makeFixedListHandlers("minhyun", "cardFixedKb", ["card-fixed-kb-total", "modal-kb-total"], [recomputeMinhyunAnalysis]);
-  var kbList = computeEffectiveList("minhyun", "cardFixedKb");
-  renderEditableList("card-fixed-kb-body", "card-fixed-kb-total", kbList, kbHandlers, { showDay: true });
-  renderEditableList("modal-kb-body", "modal-kb-total", kbList, kbHandlers, { showDay: true });
-
-  var hyundaiHandlers = makeFixedListHandlers("minhyun", "cardFixedHyundai", ["card-fixed-hyundai-total", "modal-hyundai-total"], [recomputeMinhyunAnalysis]);
-  var hyundaiList = computeEffectiveList("minhyun", "cardFixedHyundai");
-  renderEditableList("card-fixed-hyundai-body", "card-fixed-hyundai-total", hyundaiList, hyundaiHandlers, { showDay: true });
-  renderEditableList("modal-hyundai-body", "modal-hyundai-total", hyundaiList, hyundaiHandlers, { showDay: true });
-
-  renderInstallments("installments-body", "installments-total", installments);
-  renderInstallments("modal-inst-body", "modal-inst-total", installments);
-
-  recomputeMinhyunSummary();
-  recomputeMinhyunAnalysis();
+  renderInstallments("installments-body", "installments-total");
+  renderInstallments("modal-inst-body", "modal-inst-total");
 }
 
-function isInstallmentActive(item){
-  var total = Number(item.totalInstallments) || 0;
-  var current = computeCurrentInstallment(item, currentMonth);
-  return (item.enabled !== false) && total > 0 && current >= 1 && current <= total;
-}
-function sumActiveInstallments(items){
-  return (items || []).reduce(function(s, x){
-    return s + (isInstallmentActive(x) ? (Number(x.monthlyAmount) || 0) : 0);
-  }, 0);
-}
-
-function updateInstallment(id, patch){
-  var list = installmentsCache["minhyun"] || [];
-  var item = list.find(function(x){ return x.id === id; });
-  if(!item) return null;
-  Object.assign(item, patch);
-  installmentsCache["minhyun"] = list;
-  var t = fmtPlain(sumActiveInstallments(list));
-  document.getElementById("installments-total").textContent = t;
-  document.getElementById("modal-inst-total").textContent = t;
-  recomputeMinhyunAnalysis();
-  return item;
-}
-
-function renderInstallments(bodyId, totalId, items){
+function renderInstallments(bodyId, totalId){
   var tbody = document.getElementById(bodyId);
   tbody.innerHTML = "";
-  (items || []).forEach(function(item){
+  getInstallments().forEach(function(item){
+    var bindBase = "inst|minhyun||" + item.id + "|";
     var tr = document.createElement("tr");
-    if(!isInstallmentActive(item)) tr.className = "disabled-row";
+    tr.dataset.row = "inst|minhyun||" + item.id;
     tr.innerHTML =
       '<td class="drag-cell"><span class="drag-handle">⠿</span></td>' +
-      '<td class="check-cell"><input type="checkbox"' + (item.enabled !== false ? " checked" : "") + '></td>' +
-      '<td><input type="text" class="name-input" value="' + escapeHtml(item.name) + '"></td>' +
+      '<td class="check-cell"><input type="checkbox"></td>' +
+      '<td><input type="text" class="name-input"></td>' +
       '<td class="num"><input type="text" inputmode="numeric" class="money-input inline-amount"></td>' +
       '<td class="num"><span style="display:inline-flex; gap:4px; align-items:center;">' +
         '<input type="text" inputmode="numeric" class="day-input inst-current" maxlength="2">' +
@@ -1685,58 +1887,63 @@ function renderInstallments(bodyId, totalId, items){
     var amountInput = tr.querySelector('input.money-input');
     var curInput = tr.querySelector('input.inst-current');
     var totInput = tr.querySelector('input.inst-total');
+    [[checkbox, "enabled"], [nameInput, "name"], [amountInput, "monthlyAmount"], [curInput, "current"], [totInput, "totalInstallments"]].forEach(function(pair){
+      pair[0].dataset.bind = bindBase + pair[1];
+      pair[0].dataset.focusKey = bodyId + "|" + bindBase + pair[1];
+    });
+    checkbox.checked = item.enabled !== false;
+    nameInput.value = item.name || "";
     setMoneyValue(amountInput, item.monthlyAmount);
     attachMoneyFormatting(amountInput);
     curInput.value = computeCurrentInstallment(item, currentMonth) || "";
     totInput.value = item.totalInstallments || "";
 
-    checkbox.addEventListener("change", function(){
-      var updated = updateInstallment(item.id, { enabled: checkbox.checked });
-      if(updated) tr.classList.toggle("disabled-row", !isInstallmentActive(updated));
+    checkbox.addEventListener("change", function(){ updateInstallment(item.id, { enabled: checkbox.checked }); });
+    nameInput.addEventListener("input", function(){
+      var v = nameInput.value.trim();
+      if(v) updateInstallment(item.id, { name: v });
     });
     nameInput.addEventListener("change", function(){
-      updateInstallment(item.id, { name: nameInput.value.trim() || item.name });
+      if(!nameInput.value.trim()){
+        var cur = getInstallments().find(function(x){ return x.id === item.id; });
+        nameInput.value = cur ? cur.name : "";
+      }
     });
-    amountInput.addEventListener("input", function(){
-      updateInstallment(item.id, { monthlyAmount: parseAmount(amountInput.value) });
-    });
+    amountInput.addEventListener("input", function(){ updateInstallment(item.id, { monthlyAmount: parseAmount(amountInput.value) }); });
     curInput.addEventListener("input", function(){
       var v = parseInt(curInput.value.replace(/[^\d]/g, ""), 10) || 0;
       curInput.value = v || "";
-      var updated = updateInstallment(item.id, { anchorMonth: currentMonth, anchorInstallment: v });
-      if(updated) tr.classList.toggle("disabled-row", !isInstallmentActive(updated));
+      updateInstallment(item.id, { anchorMonth: currentMonth, anchorInstallment: v });
     });
     totInput.addEventListener("input", function(){
       var v = parseInt(totInput.value.replace(/[^\d]/g, ""), 10) || 0;
       totInput.value = v || "";
-      var updated = updateInstallment(item.id, { totalInstallments: v });
-      if(updated) tr.classList.toggle("disabled-row", !isInstallmentActive(updated));
+      updateInstallment(item.id, { totalInstallments: v });
     });
     tr.querySelector("button.danger").addEventListener("click", function(){
-      var list = installmentsCache["minhyun"] || [];
-      installmentsCache["minhyun"] = list.filter(function(x){ return x.id !== item.id; });
-      renderSalary();
+      if(!canEdit("minhyun")) return;
+      work.inst.minhyun.installments = getInstallments().filter(function(x){ return x.id !== item.id; });
+      requestRender();
     });
     attachRowDrag(tr, item.id, function(draggedId, targetId){
-      var list = installmentsCache["minhyun"] || [];
-      reorderArray(list, draggedId, targetId);
-      installmentsCache["minhyun"] = list;
-      renderSalary();
+      if(!canEdit("minhyun")) return;
+      reorderArray(work.inst.minhyun.installments, draggedId, targetId);
+      requestRender();
     });
     tbody.appendChild(tr);
   });
-  document.getElementById(totalId).textContent = fmtPlain(sumActiveInstallments(items));
+  document.getElementById(totalId).dataset.sumInst = "1";
 }
 
 function computeMinhyunAnalysis(){
-  var data = salaryCache["minhyun"] || emptySalary("minhyun");
+  var data = getMonthWork("minhyun");
   var giupTotal = sumEnabled(computeEffectiveList("minhyun", "fixedGiup"));
   var nhTotal = sumEnabled(computeEffectiveList("minhyun", "fixedNh"));
   var kbTotal = sumEnabled(computeEffectiveList("minhyun", "cardFixedKb"));
   var hyundaiTotal = sumEnabled(computeEffectiveList("minhyun", "cardFixedHyundai"));
   var cashTotal = giupTotal + nhTotal;
   var cardTotal = kbTotal + hyundaiTotal;
-  var instTotal = sumActiveInstallments(installmentsCache["minhyun"]);
+  var instTotal = sumActiveInstallments(getInstallments());
   var salary = Number(data.salary) || 0;
   return {
     salary: salary,
@@ -1749,18 +1956,16 @@ function computeMinhyunAnalysis(){
 
 function recomputeMinhyunAnalysis(){
   var a = computeMinhyunAnalysis();
-  var salary = a.salary, cashTotal = a.cashTotal, cardTotal = a.cardTotal, instTotal = a.instTotal, remaining = a.remaining;
-
-  document.getElementById("af-stat-salary").textContent = fmt(salary);
-  document.getElementById("af-stat-cash").textContent = fmt(cashTotal);
-  document.getElementById("af-stat-card").textContent = fmt(cardTotal);
-  document.getElementById("af-stat-inst").textContent = fmt(instTotal);
+  document.getElementById("af-stat-salary").textContent = fmt(a.salary);
+  document.getElementById("af-stat-cash").textContent = fmt(a.cashTotal);
+  document.getElementById("af-stat-card").textContent = fmt(a.cardTotal);
+  document.getElementById("af-stat-inst").textContent = fmt(a.instTotal);
   var remEl = document.getElementById("af-stat-remaining");
-  remEl.textContent = fmt(remaining);
-  remEl.className = "value " + (remaining < 0 ? "bad" : "good");
+  remEl.textContent = fmt(a.remaining);
+  remEl.className = "value " + (a.remaining < 0 ? "bad" : "good");
 }
 
-function renderCardsQuickEntry(personId, bodyId, cards, onAmount){
+function renderCardsQuickEntry(personId, bodyId, cards){
   var container = document.getElementById(bodyId);
   container.innerHTML = "";
   cards.forEach(function(card){
@@ -1771,18 +1976,11 @@ function renderCardsQuickEntry(personId, bodyId, cards, onAmount){
       '<label>' + escapeHtml(card.name) + bankLabel + '</label>' +
       '<input type="text" inputmode="numeric" class="money-input" placeholder="사용금액">';
     var input = field.querySelector("input");
+    input.dataset.bind = "card|" + personId + "||" + card.id + "|amount";
+    input.dataset.focusKey = bodyId + "|" + input.dataset.bind;
     setMoneyValue(input, card.amount);
-    input.addEventListener("keydown", moneyKeydownFix);
-    input.addEventListener("input", function(){
-      reformatMoneyInput(input);
-      var d = salaryCache[personId] || emptySalary(personId);
-      var target = d.cards.find(function(c){ return c.id === card.id; });
-      if(target){
-        target.amount = parseAmount(input.value);
-        salaryCache[personId] = d;
-        onAmount();
-      }
-    });
+    attachMoneyFormatting(input);
+    input.addEventListener("input", function(){ setCardField(personId, card.id, "amount", parseAmount(input.value)); });
     container.appendChild(field);
   });
 }
@@ -1793,38 +1991,33 @@ function renderCardsEditBody(personId, bodyId, cards, hasBank){
   cards.forEach(function(card){
     var tr = document.createElement("tr");
     tr.innerHTML =
-      '<td><input type="text" value="' + escapeHtml(card.name) + '"></td>' +
+      '<td><input type="text"></td>' +
       (hasBank ?
-        '<td><select><option value="기업"' + (card.bank === "기업" ? " selected" : "") + '>기업은행</option>' +
-        '<option value="농협"' + (card.bank === "농협" ? " selected" : "") + '>농협은행</option></select></td>'
+        '<td><select><option value="기업">기업은행</option><option value="농협">농협은행</option></select></td>'
         : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
     var nameInput = tr.querySelector("input");
+    nameInput.value = card.name || "";
+    nameInput.dataset.bind = "card|" + personId + "||" + card.id + "|name";
+    nameInput.dataset.focusKey = bodyId + "|" + nameInput.dataset.bind;
     nameInput.addEventListener("change", function(){
-      var d = salaryCache[personId] || emptySalary(personId);
-      var target = d.cards.find(function(c){ return c.id === card.id; });
-      if(target){ target.name = nameInput.value.trim() || target.name; salaryCache[personId] = d; renderSalary(); }
+      var v = nameInput.value.trim();
+      if(v) setCardField(personId, card.id, "name", v, true);
+      else nameInput.value = card.name;
     });
     if(hasBank){
       var bankSelect = tr.querySelector("select");
-      bankSelect.addEventListener("change", function(){
-        var d = salaryCache[personId] || emptySalary(personId);
-        var target = d.cards.find(function(c){ return c.id === card.id; });
-        if(target){ target.bank = bankSelect.value; salaryCache[personId] = d; renderSalary(); }
-      });
+      bankSelect.value = card.bank || "농협";
+      bankSelect.dataset.bind = "card|" + personId + "||" + card.id + "|bank";
+      bankSelect.addEventListener("change", function(){ setCardField(personId, card.id, "bank", bankSelect.value, true); });
     }
-    tr.querySelector("button.danger").addEventListener("click", function(){
-      var d = salaryCache[personId] || emptySalary(personId);
-      d.cards = d.cards.filter(function(c){ return c.id !== card.id; });
-      salaryCache[personId] = d;
-      renderSalary();
-    });
+    tr.querySelector("button.danger").addEventListener("click", function(){ deleteCard(personId, card.id); });
     tbody.appendChild(tr);
   });
 }
 
 function recomputeMinhyunSummary(){
-  var data = salaryCache["minhyun"] || emptySalary("minhyun");
+  var data = getMonthWork("minhyun");
   var cardsTotal = 0;
   var cardsByBank = { "기업": 0, "농협": 0 };
   (data.cards || []).forEach(function(item){
@@ -1850,34 +2043,25 @@ function recomputeMinhyunSummary(){
   remEl.className = "value " + (remaining < 0 ? "bad" : "good");
 }
 
-function renderMinyoung(data){
-  data.cards = data.cards || [];
-  data.fixedOverrides = data.fixedOverrides || {};
-  fixedCache["minyoung"] = fixedCache["minyoung"] || defaultFixed("minyoung");
+function renderMinyoung(){
+  var data = getMonthWork("minyoung");
+  renderCardsQuickEntry("minyoung", "my-cards-quick-entry", data.cards || []);
+  renderCardsEditBody("minyoung", "my-cards-edit-body", data.cards || [], false);
 
-  renderCardsQuickEntry("minyoung", "my-cards-quick-entry", data.cards, recomputeMinyoungSummary);
-  renderCardsEditBody("minyoung", "my-cards-edit-body", data.cards, false);
-
-  var handlers = makeFixedListHandlers("minyoung", "fixedItems", ["fixed-total", "modal-minyoung-total"], [recomputeMinyoungSummary, recomputeMinyoungAnalysis]);
   var list = computeEffectiveList("minyoung", "fixedItems");
-  renderEditableList("fixed-items-body", "fixed-total", list, handlers, { showAccount: true });
-  renderEditableList("modal-minyoung-body", "modal-minyoung-total", list, handlers, { showAccount: true });
-  renderMinyoungCashGroups(list, handlers);
+  renderEditableList("fixed-items-body", "fixed-total", list, "minyoung", "fixedItems", { showAccount: true });
+  renderEditableList("modal-minyoung-body", "modal-minyoung-total", list, "minyoung", "fixedItems", { showAccount: true });
+  renderMinyoungCashGroups(list);
 
   MY_CARD_FIXED.forEach(function(c){
-    var cardHandlers = makeFixedListHandlers("minyoung", c.listKey, ["my-card-fixed-" + c.key + "-total", "modal-my-" + c.key + "-total"], [recomputeMinyoungAnalysis]);
     var cardList = computeEffectiveList("minyoung", c.listKey);
-    renderEditableList("my-card-fixed-" + c.key + "-body", "my-card-fixed-" + c.key + "-total", cardList, cardHandlers);
-    renderEditableList("modal-my-" + c.key + "-body", "modal-my-" + c.key + "-total", cardList, cardHandlers);
+    renderEditableList("my-card-fixed-" + c.key + "-body", "my-card-fixed-" + c.key + "-total", cardList, "minyoung", c.listKey);
+    renderEditableList("modal-my-" + c.key + "-body", "modal-my-" + c.key + "-total", cardList, "minyoung", c.listKey);
   });
-
-  recomputeMinyoungSummary();
-  recomputeMinyoungAnalysis();
 }
 
 /* 민영 월급분석: 고정금(현금)은 월급분배의 fixedItems를 은행(bank)별로 묶어서 보여주고,
    고정금(카드)는 카드별로 따로 관리하는 목록(cardFixedHyundai / cardFixedWoori) */
-
 function groupByBank(items){
   var groups = [];
   var byName = {};
@@ -1892,7 +2076,7 @@ function groupByBank(items){
   return groups;
 }
 
-function renderMinyoungCashGroups(list, handlers){
+function renderMinyoungCashGroups(list){
   var container = document.getElementById("my-cash-groups");
   container.innerHTML = "";
   groupByBank(list).forEach(function(group, idx){
@@ -1905,12 +2089,12 @@ function renderMinyoungCashGroups(list, handlers){
         '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="num" id="my-cash-total-' + idx + '">0</td><td></td></tr></tfoot>' +
       '</table></div>';
     container.appendChild(wrap);
-    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, handlers);
+    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, "minyoung", "fixedItems", { bank: group.bank });
   });
 }
 
 function computeMinyoungAnalysis(){
-  var data = salaryCache["minyoung"] || emptySalary("minyoung");
+  var data = getMonthWork("minyoung");
   var cashTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
   var cardTotal = MY_CARD_FIXED.reduce(function(s, c){
     return s + sumEnabled(computeEffectiveList("minyoung", c.listKey));
@@ -1920,10 +2104,6 @@ function computeMinyoungAnalysis(){
 }
 
 function recomputeMinyoungAnalysis(){
-  groupByBank(computeEffectiveList("minyoung", "fixedItems")).forEach(function(group, idx){
-    var el = document.getElementById("my-cash-total-" + idx);
-    if(el) el.textContent = fmtPlain(sumEnabled(group.items));
-  });
   var a = computeMinyoungAnalysis();
   document.getElementById("myaf-stat-salary").textContent = fmt(a.salary);
   document.getElementById("myaf-stat-cash").textContent = fmt(a.cashTotal);
@@ -1934,13 +2114,12 @@ function recomputeMinyoungAnalysis(){
 }
 
 function recomputeMinyoungSummary(){
-  var data = salaryCache["minyoung"] || emptySalary("minyoung");
+  var data = getMonthWork("minyoung");
   var cardsTotal = (data.cards || []).reduce(function(s, c){ return s + (Number(c.amount) || 0); }, 0);
   document.getElementById("my-cards-total").textContent = fmtPlain(cardsTotal);
   var fixedTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
-  var total = fixedTotal + cardsTotal;
   var salary = Number(data.salary) || 0;
-  var remaining = salary - total;
+  var remaining = salary - fixedTotal - cardsTotal;
   document.getElementById("stat-salary").textContent = fmt(salary);
   document.getElementById("stat-fixed").textContent = fmt(fixedTotal);
   document.getElementById("my-stat-cards").textContent = fmt(cardsTotal);
@@ -1949,139 +2128,147 @@ function recomputeMinyoungSummary(){
   remEl.className = "value " + (remaining < 0 ? "bad" : "good");
 }
 
-function escapeHtml(s){
-  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
-    return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+/* ---------- 사람 탭 / 섹션 탭 (각 사람의 미저장 내용은 탭을 바꿔도 그대로 유지) ---------- */
+document.querySelectorAll("#person-tabs button").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    closeEditModal();
+    document.querySelectorAll("#person-tabs button").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    currentPerson = btn.getAttribute("data-person");
+    document.getElementById("panel-minhyun").style.display = currentPerson === "minhyun" ? "" : "none";
+    document.getElementById("panel-minyoung").style.display = currentPerson === "minyoung" ? "" : "none";
+    document.getElementById("panel-joint").style.display = currentPerson === "joint" ? "" : "none";
+    document.getElementById("minhyun-section-tabs").style.display = currentPerson === "minhyun" ? "" : "none";
+    document.getElementById("minyoung-section-tabs").style.display = currentPerson === "minyoung" ? "" : "none";
+    document.getElementById("salary-field-row").style.display = currentPerson === "joint" ? "none" : "";
+    requestRender();
+  });
+});
+
+["minhyun", "minyoung"].forEach(function(p){
+  document.querySelectorAll("#" + p + "-section-tabs button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      closeEditModal();
+      document.querySelectorAll("#" + p + "-section-tabs button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      var section = btn.getAttribute("data-section");
+      document.getElementById(p + "-calc-section").style.display = section === "calc" ? "" : "none";
+      document.getElementById(p + "-analysis-section").style.display = section === "analysis" ? "" : "none";
+    });
+  });
+});
+
+/* ---------- 모달 ---------- */
+var modalHomeParent = null;
+var modalHomeNext = null;
+var modalMode = null; // "static" | "dynamic"
+var modalOnDismiss = null;
+
+function openEditModal(title, contentId){
+  closeEditModal();
+  modalMode = "static";
+  var contentEl = document.getElementById(contentId);
+  modalHomeParent = contentEl.parentNode;
+  modalHomeNext = contentEl.nextSibling;
+  contentEl.style.display = "";
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML = "";
+  document.getElementById("modal-body").appendChild(contentEl);
+  document.getElementById("modal-overlay").classList.add("open");
+}
+function openDynamicModal(title, bodyHtml, onDismiss){
+  closeEditModal();
+  modalMode = "dynamic";
+  modalOnDismiss = onDismiss || null;
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML = bodyHtml;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+function closeEditModal(){
+  if(modalMode === "static"){
+    var body = document.getElementById("modal-body");
+    var contentEl = body.firstElementChild;
+    if(contentEl){
+      contentEl.style.display = "none";
+      if(modalHomeParent) modalHomeParent.insertBefore(contentEl, modalHomeNext);
+    }
+  } else if(modalMode === "dynamic"){
+    document.getElementById("modal-body").innerHTML = "";
+  }
+  document.getElementById("modal-overlay").classList.remove("open");
+  modalHomeParent = null;
+  modalHomeNext = null;
+  modalMode = null;
+  modalOnDismiss = null;
+}
+// X 버튼/바깥 클릭으로 닫으면 "취소"로 처리 (예: 저장 범위 선택창 → 저장·이동하지 않음)
+function dismissModal(){
+  var cb = modalOnDismiss;
+  closeEditModal();
+  if(cb) cb();
+}
+document.getElementById("modal-close-btn").addEventListener("click", dismissModal);
+document.getElementById("modal-overlay").addEventListener("click", function(e){
+  if(e.target === this) dismissModal();
+});
+
+document.getElementById("add-giup-btn-calc").addEventListener("click", function(){
+  openEditModal("기업은행 고정금 추가", "giup-add-content");
+});
+document.getElementById("add-nh-btn-calc").addEventListener("click", function(){
+  openEditModal("농협은행 고정금 추가", "nh-add-content");
+});
+document.getElementById("add-giup-btn-analysis").addEventListener("click", function(){
+  openEditModal("기업은행 고정금 추가", "giup-add-content");
+});
+document.getElementById("add-nh-btn-analysis").addEventListener("click", function(){
+  openEditModal("농협은행 고정금 추가", "nh-add-content");
+});
+document.getElementById("add-kb-btn-open").addEventListener("click", function(){
+  openEditModal("KB카드 고정금 추가", "kb-add-content");
+});
+document.getElementById("add-hyundai-btn-open").addEventListener("click", function(){
+  openEditModal("현대카드 고정금 추가", "hyundai-add-content");
+});
+document.getElementById("add-inst-btn-open").addEventListener("click", function(){
+  openEditModal("카드 할부 추가", "inst-add-content");
+});
+document.getElementById("add-item-btn-open").addEventListener("click", function(){
+  openEditModal("고정비 / 차감 항목 추가", "minyoung-add-content");
+});
+document.getElementById("add-my-cash-btn-open").addEventListener("click", function(){
+  openEditModal("고정금(현금) 항목 추가", "minyoung-add-content");
+});
+document.getElementById("add-living-btn-open").addEventListener("click", function(){
+  openEditModal("생활비 사용 계획 추가", "joint-living-add-content");
+});
+
+/* ---------- 항목 추가 ---------- */
+function wireAddFixed(prefix, p, listKey, withDay){
+  document.getElementById("add-" + prefix + "-btn").addEventListener("click", function(){
+    var nameEl = document.getElementById("new-" + prefix + "-name");
+    var amtEl = document.getElementById("new-" + prefix + "-amount");
+    var dayEl = withDay ? document.getElementById("new-" + prefix + "-day") : null;
+    var name = nameEl.value.trim();
+    if(!name) return;
+    var item = { id: uid(), name: name, amount: parseAmount(amtEl.value), enabled: true };
+    if(dayEl) item.day = parseInt(dayEl.value, 10) || 0;
+    if(addItem(p, listKey, item)){
+      nameEl.value = ""; amtEl.value = "";
+      if(dayEl) dayEl.value = "";
+    }
   });
 }
-
-document.getElementById("salary-amount").addEventListener("input", function(){
-  var d = salaryCache[currentPerson] || emptySalary(currentPerson);
-  d.salary = parseAmount(this.value);
-  salaryCache[currentPerson] = d;
-  if(currentPerson === "minhyun"){
-    recomputeMinhyunSummary();
-    recomputeMinhyunAnalysis();
-  } else {
-    recomputeMinyoungSummary();
-    recomputeMinyoungAnalysis();
-  }
-});
-
-document.getElementById("toggle-card-edit-btn").addEventListener("click", function(){
-  var panel = document.getElementById("cards-edit-panel");
-  var isHidden = panel.style.display === "none";
-  panel.style.display = isHidden ? "" : "none";
-  this.textContent = isHidden ? "편집 닫기" : "카드 편집";
-});
-
-document.getElementById("add-card-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-card-name");
-  var bankEl = document.getElementById("new-card-bank");
-  var name = nameEl.value.trim();
-  if(!name) return;
-  var d = salaryCache["minhyun"] || emptySalary("minhyun");
-  d.cards = d.cards || [];
-  d.cards.push({ id: uid(), name: name, bank: bankEl.value, amount: 0 });
-  salaryCache["minhyun"] = d;
-  nameEl.value = "";
-  renderSalary();
-});
-
-document.getElementById("toggle-my-card-edit-btn").addEventListener("click", function(){
-  var panel = document.getElementById("my-cards-edit-panel");
-  var isHidden = panel.style.display === "none";
-  panel.style.display = isHidden ? "" : "none";
-  this.textContent = isHidden ? "편집 닫기" : "카드 편집";
-});
-
-document.getElementById("add-my-card-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-my-card-name");
-  var name = nameEl.value.trim();
-  if(!name) return;
-  var d = salaryCache["minyoung"] || emptySalary("minyoung");
-  d.cards = d.cards || [];
-  d.cards.push({ id: uid(), name: name, amount: 0 });
-  salaryCache["minyoung"] = d;
-  nameEl.value = "";
-  renderSalary();
-});
-
-document.getElementById("add-giup-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-giup-name");
-  var dayEl = document.getElementById("new-giup-day");
-  var amtEl = document.getElementById("new-giup-amount");
-  var name = nameEl.value.trim();
-  var day = parseInt(dayEl.value, 10) || 0;
-  var amount = parseAmount(amtEl.value);
-  if(!name) return;
-  fixedCache["minhyun"] = fixedCache["minhyun"] || defaultFixed("minhyun");
-  fixedCache["minhyun"].fixedGiup = fixedCache["minhyun"].fixedGiup || [];
-  fixedCache["minhyun"].fixedGiup.push({ id: uid(), name: name, day: day, amount: amount, enabled: true });
-  nameEl.value = ""; dayEl.value = ""; amtEl.value = "";
-  renderSalary();
-});
-
-document.getElementById("add-nh-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-nh-name");
-  var dayEl = document.getElementById("new-nh-day");
-  var amtEl = document.getElementById("new-nh-amount");
-  var name = nameEl.value.trim();
-  var day = parseInt(dayEl.value, 10) || 0;
-  var amount = parseAmount(amtEl.value);
-  if(!name) return;
-  fixedCache["minhyun"] = fixedCache["minhyun"] || defaultFixed("minhyun");
-  fixedCache["minhyun"].fixedNh = fixedCache["minhyun"].fixedNh || [];
-  fixedCache["minhyun"].fixedNh.push({ id: uid(), name: name, day: day, amount: amount, enabled: true });
-  nameEl.value = ""; dayEl.value = ""; amtEl.value = "";
-  renderSalary();
-});
-
-document.getElementById("add-kb-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-kb-name");
-  var dayEl = document.getElementById("new-kb-day");
-  var amtEl = document.getElementById("new-kb-amount");
-  var name = nameEl.value.trim();
-  var day = parseInt(dayEl.value, 10) || 0;
-  var amount = parseAmount(amtEl.value);
-  if(!name) return;
-  fixedCache["minhyun"] = fixedCache["minhyun"] || defaultFixed("minhyun");
-  fixedCache["minhyun"].cardFixedKb = fixedCache["minhyun"].cardFixedKb || [];
-  fixedCache["minhyun"].cardFixedKb.push({ id: uid(), name: name, day: day, amount: amount, enabled: true });
-  nameEl.value = ""; dayEl.value = ""; amtEl.value = "";
-  renderSalary();
-});
-
-document.getElementById("add-hyundai-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-hyundai-name");
-  var dayEl = document.getElementById("new-hyundai-day");
-  var amtEl = document.getElementById("new-hyundai-amount");
-  var name = nameEl.value.trim();
-  var day = parseInt(dayEl.value, 10) || 0;
-  var amount = parseAmount(amtEl.value);
-  if(!name) return;
-  fixedCache["minhyun"] = fixedCache["minhyun"] || defaultFixed("minhyun");
-  fixedCache["minhyun"].cardFixedHyundai = fixedCache["minhyun"].cardFixedHyundai || [];
-  fixedCache["minhyun"].cardFixedHyundai.push({ id: uid(), name: name, day: day, amount: amount, enabled: true });
-  nameEl.value = ""; dayEl.value = ""; amtEl.value = "";
-  renderSalary();
-});
-
-document.getElementById("add-inst-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-inst-name");
-  var amtEl = document.getElementById("new-inst-amount");
-  var curEl = document.getElementById("new-inst-current");
-  var totEl = document.getElementById("new-inst-total");
-  var name = nameEl.value.trim();
-  var amount = parseAmount(amtEl.value);
-  var current = parseInt(curEl.value, 10) || 0;
-  var total = parseInt(totEl.value, 10) || 0;
-  if(!name) return;
-  var list = installmentsCache["minhyun"] || [];
-  list.push({ id: uid(), name: name, monthlyAmount: amount, totalInstallments: total, anchorMonth: currentMonth, anchorInstallment: current, enabled: true });
-  installmentsCache["minhyun"] = list;
-  nameEl.value = ""; amtEl.value = ""; curEl.value = ""; totEl.value = "";
-  renderSalary();
+wireAddFixed("giup", "minhyun", "fixedGiup", true);
+wireAddFixed("nh", "minhyun", "fixedNh", true);
+wireAddFixed("kb", "minhyun", "cardFixedKb", true);
+wireAddFixed("hyundai", "minhyun", "cardFixedHyundai", true);
+wireAddFixed("living", "joint", "livingItems", false);
+MY_CARD_FIXED.forEach(function(c){
+  document.getElementById("add-my-" + c.key + "-btn-open").addEventListener("click", function(){
+    openEditModal(c.label + " 고정금 추가", "my-" + c.key + "-add-content");
+  });
+  wireAddFixed("my-" + c.key, "minyoung", c.listKey, false);
 });
 
 document.getElementById("add-item-btn").addEventListener("click", function(){
@@ -2090,173 +2277,546 @@ document.getElementById("add-item-btn").addEventListener("click", function(){
   var bankEl = document.getElementById("new-item-bank");
   var amtEl = document.getElementById("new-item-amount");
   var name = nameEl.value.trim();
-  var account = accountEl.value.trim();
-  var bank = bankEl.value.trim();
-  var amount = parseAmount(amtEl.value);
   if(!name) return;
-  fixedCache["minyoung"] = fixedCache["minyoung"] || defaultFixed("minyoung");
-  fixedCache["minyoung"].fixedItems = fixedCache["minyoung"].fixedItems || [];
-  fixedCache["minyoung"].fixedItems.push({ id: uid(), name: name, account: account, bank: bank, amount: amount, enabled: true });
-  nameEl.value = "";
-  accountEl.value = "";
-  bankEl.value = "";
-  amtEl.value = "";
-  renderSalary();
+  var item = { id: uid(), name: name, account: accountEl.value.trim(), bank: bankEl.value.trim(), amount: parseAmount(amtEl.value), enabled: true };
+  if(addItem("minyoung", "fixedItems", item)){
+    nameEl.value = ""; accountEl.value = ""; bankEl.value = ""; amtEl.value = "";
+  }
 });
 
-document.getElementById("add-living-btn").addEventListener("click", function(){
-  var nameEl = document.getElementById("new-living-name");
-  var amtEl = document.getElementById("new-living-amount");
+document.getElementById("add-inst-btn").addEventListener("click", function(){
+  var nameEl = document.getElementById("new-inst-name");
+  var amtEl = document.getElementById("new-inst-amount");
+  var curEl = document.getElementById("new-inst-current");
+  var totEl = document.getElementById("new-inst-total");
   var name = nameEl.value.trim();
-  var amount = parseAmount(amtEl.value);
-  if(!name) return;
-  fixedCache["joint"] = fixedCache["joint"] || defaultFixed("joint");
-  fixedCache["joint"].livingItems = fixedCache["joint"].livingItems || [];
-  fixedCache["joint"].livingItems.push({ id: uid(), name: name, amount: amount, enabled: true });
-  nameEl.value = "";
-  amtEl.value = "";
-  renderSalary();
+  if(!name || !canEdit("minhyun")) return;
+  work.inst.minhyun.installments = getInstallments().concat([{
+    id: uid(), name: name, monthlyAmount: parseAmount(amtEl.value),
+    totalInstallments: parseInt(totEl.value, 10) || 0, anchorMonth: currentMonth,
+    anchorInstallment: parseInt(curEl.value, 10) || 0, enabled: true
+  }]);
+  nameEl.value = ""; amtEl.value = ""; curEl.value = ""; totEl.value = "";
+  requestRender();
 });
 
-function performSave(){
-  var d = salaryCache[currentPerson] || emptySalary(currentPerson);
-  var payload = {
-    fixedOverrides: d.fixedOverrides || {},
-    updatedAt: serverTimestamp()
-  };
-  if(currentPerson !== "joint"){
-    payload.salary = Number(d.salary) || 0;
-    payload.cards = d.cards || [];
-  }
+document.getElementById("salary-amount").addEventListener("input", function(){
+  if(currentPerson === "joint" || !canEdit(currentPerson)) return;
+  work.month[currentPerson].salary = parseAmount(this.value);
+  refreshComputed();
+});
 
-  var saveTasks = [setDoc(doc(db, "budget_salaryProfiles", monthDocId(currentPerson, currentMonth)), payload, { merge: true })];
-  saveTasks.push(setDoc(doc(db, "budget_salaryProfiles", currentPerson + "_fixed"), fixedCache[currentPerson] || defaultFixed(currentPerson)));
-  if(currentPerson === "minhyun"){
-    saveTasks.push(setDoc(doc(db, "budget_salaryProfiles", "minhyun_installments"), { installments: installmentsCache["minhyun"] || [] }, { merge: true }));
-  }
-  Promise.all(saveTasks).then(function(){
-    flashStatus("저장 완료", true);
-  }).catch(function(err){
-    flashStatus("저장 실패: " + err.message, false);
-  });
+document.getElementById("toggle-card-edit-btn").addEventListener("click", function(){
+  var panel = document.getElementById("cards-edit-panel");
+  var isHidden = panel.style.display === "none";
+  panel.style.display = isHidden ? "" : "none";
+  this.textContent = isHidden ? "편집 닫기" : "카드 편집";
+});
+document.getElementById("toggle-my-card-edit-btn").addEventListener("click", function(){
+  var panel = document.getElementById("my-cards-edit-panel");
+  var isHidden = panel.style.display === "none";
+  panel.style.display = isHidden ? "" : "none";
+  this.textContent = isHidden ? "편집 닫기" : "카드 편집";
+});
+document.getElementById("add-card-btn").addEventListener("click", function(){
+  var nameEl = document.getElementById("new-card-name");
+  var bankEl = document.getElementById("new-card-bank");
+  var name = nameEl.value.trim();
+  if(!name) return;
+  if(addCard("minhyun", { id: uid(), name: name, bank: bankEl.value, amount: 0 })) nameEl.value = "";
+});
+document.getElementById("add-my-card-btn").addEventListener("click", function(){
+  var nameEl = document.getElementById("new-my-card-name");
+  var name = nameEl.value.trim();
+  if(!name) return;
+  if(addCard("minyoung", { id: uid(), name: name, amount: 0 })) nameEl.value = "";
+});
+
+/* ---------- 달 이동 ---------- */
+function renderMonthLabel(){
+  document.getElementById("month-label").textContent = formatMonthLabel(currentMonth);
 }
-
-function applyPendingChoicesAndSave(personId, ids){
-  ids.forEach(function(id){
-    var change = pendingAmountChanges[id];
-    if(!change) return;
-    var scopeInput = document.querySelector('input[name="scope-' + id + '"]:checked');
-    var scope = scopeInput ? scopeInput.value : "all";
-    if(scope === "all"){
-      var list = (fixedCache[personId] && fixedCache[personId][change.listKey]) || [];
-      var item = list.find(function(x){ return x.id === id; });
-      if(item) item.amount = change.newAmount;
-      var d = salaryCache[personId] || emptySalary(personId);
-      if(d.fixedOverrides && d.fixedOverrides[id]) delete d.fixedOverrides[id].amount;
-      salaryCache[personId] = d;
-    } else {
-      var d2 = salaryCache[personId] || emptySalary(personId);
-      d2.fixedOverrides = d2.fixedOverrides || {};
-      d2.fixedOverrides[id] = Object.assign({}, d2.fixedOverrides[id], { amount: change.newAmount });
-      salaryCache[personId] = d2;
-    }
-    delete pendingAmountChanges[id];
-  });
+function changeMonth(newMonth){
   closeEditModal();
-  performSave();
-}
-
-document.getElementById("save-salary-btn").addEventListener("click", function(){
-  var relevantIds = Object.keys(pendingAmountChanges).filter(function(id){
-    return pendingAmountChanges[id].person === currentPerson;
+  editingKey = null;
+  currentMonth = newMonth;
+  renderMonthLabel();
+  PERSONS.forEach(function(p){
+    if(monthUnsubs[p]) monthUnsubs[p]();
+    delete monthUnsubs[p];
+    // 새 달 데이터가 올 때까지 이전 달 값은 비워서 저장·편집이 불가능하게 함
+    server.month[p] = null;
+    base.month[p] = null;
+    work.month[p] = null;
+    if(authorized) subscribeMonth(p);
   });
-  if(relevantIds.length === 0){
-    performSave();
+  requestRender();
+  updateChrome();
+}
+function requestMonthChange(newMonth){
+  if(saving) return;
+  var dirty = dirtyPersons();
+  if(!dirty.length){
+    changeMonth(newMonth);
     return;
   }
-  var rowsHtml = relevantIds.map(function(id){
+  var html =
+    '<p style="margin:0 0 14px; color:var(--text-dim); font-size:13px; line-height:1.6;">' +
+      '<strong style="color:var(--warn);">' + escapeHtml(labelsOf(dirty)) + '</strong>에 저장하지 않은 변경이 있어요. ' +
+      escapeHtml(formatMonthLabel(newMonth)) + '로 이동하기 전에 어떻게 할까요?</p>' +
+    '<div class="modal-actions">' +
+      '<button class="ghost" id="move-cancel">이동 취소</button>' +
+      '<button class="ghost" id="move-discard">변경 취소 후 이동</button>' +
+      '<button class="primary" id="move-save">저장 후 이동</button>' +
+    '</div>';
+  openDynamicModal("저장하지 않은 변경사항", html, null);
+  document.getElementById("move-cancel").addEventListener("click", closeEditModal);
+  document.getElementById("move-discard").addEventListener("click", function(){
+    closeEditModal();
+    dirty.forEach(discardPerson);
+    changeMonth(newMonth);
+  });
+  document.getElementById("move-save").addEventListener("click", function(){
+    closeEditModal();
+    startSave(dirty, function(){ changeMonth(newMonth); });
+  });
+}
+document.getElementById("month-prev-btn").addEventListener("click", function(){
+  requestMonthChange(shiftMonth(currentMonth, -1));
+});
+document.getElementById("month-next-btn").addEventListener("click", function(){
+  requestMonthChange(shiftMonth(currentMonth, 1));
+});
+renderMonthLabel();
+
+// 내 변경을 버리고 서버에서 받은 최신 값으로 되돌림
+function discardPerson(p){
+  editingKey = null;
+  KINDS_FOR[p].forEach(function(k){
+    if(server[k][p] != null){
+      work[k][p] = clone(server[k][p]);
+      base[k][p] = clone(server[k][p]);
+    }
+  });
+  personPendingIds(p).forEach(function(id){ delete pendingAmountChanges[id]; delete scopeChoices[id]; });
+  conflict[p] = false;
+  conflictAck[p] = false;
+  delete overwriteBaseline[p];
+}
+
+/* ---------- 저장 ----------
+   1) 미저장 금액 변경이 있으면 항목별 "전체 적용 / 이번 달만" 선택
+   2) 저장 시작 시점의 사람·달·내용을 고정(plan)해서, 도중에 탭이나 달을 바꿔도 대상이 바뀌지 않음
+   3) 바뀐 문서·필드만 하나의 transaction으로 저장 (일부만 저장되는 일 없음, 바뀌지 않은 필드는 안 건드림)
+   4) 서버 값이 편집 시작 후 바뀌었으면 저장을 멈추고 충돌로 표시 */
+function startSave(persons, afterSuccess){
+  if(saving || !allReady()) return;
+  persons = persons.filter(isDirty);
+  if(!persons.length){
+    flashStatus("저장할 변경사항이 없어요", "ok");
+    if(afterSuccess) afterSuccess();
+    return;
+  }
+  var needCompare = persons.filter(function(p){ return conflict[p] && conflictAck[p] && !overwriteBaseline[p]; });
+  var unresolved = persons.filter(function(p){ return conflict[p] && !conflictAck[p]; });
+  if(unresolved.length){
+    stickyError = "다른 기기에서 " + labelsOf(unresolved) + " 데이터가 바뀌었어요. 위 안내에서 '서버 값 불러오기' 또는 '내 변경 유지'를 먼저 선택해 주세요.";
+    updateChrome();
+    return;
+  }
+  if(needCompare.length){
+    showCompareModal(needCompare, function(){ startSave(persons, afterSuccess); });
+    return;
+  }
+  var ids = [];
+  persons.forEach(function(p){ ids = ids.concat(personPendingIds(p)); });
+  if(ids.length){
+    showScopeModal(ids, function(){ doSave(persons, afterSuccess); });
+  } else {
+    doSave(persons, afterSuccess);
+  }
+}
+
+function showScopeModal(ids, onConfirm){
+  var rowsHtml = ids.map(function(id){
     var c = pendingAmountChanges[id];
+    var choice = scopeChoices[id] || "all";
     return (
       '<tr>' +
-        '<td>' + escapeHtml(c.name) + '</td>' +
-        '<td class="num" style="white-space:nowrap;">' + fmtPlain(c.oldAmount) + ' → ' + fmtPlain(c.newAmount) + '</td>' +
-        '<td>' +
-          '<label style="margin-right:12px; font-weight:400;"><input type="radio" name="scope-' + id + '" value="all" checked> 전체 적용</label>' +
-          '<label style="font-weight:400;"><input type="radio" name="scope-' + id + '" value="month"> 이번 달만</label>' +
-        '</td>' +
+        '<td>' + escapeHtml(PERSON_LABEL[c.person]) + '</td>' +
+        '<td>' + escapeHtml(c.name) + '<div style="font-size:11px; color:var(--text-faint);">' + escapeHtml(LIST_LABEL[c.listKey] || "") + '</div></td>' +
+        '<td class="num">' + fmtPlain(c.oldAmount) + '<br>→ ' + fmtPlain(c.newAmount) + '</td>' +
+        '<td><div class="scope-choices">' +
+          '<label style="font-weight:400;"><input type="radio" name="scope-' + escapeHtml(id) + '" value="all"' + (choice === "all" ? " checked" : "") + '> 전체 적용</label>' +
+          '<label style="font-weight:400;"><input type="radio" name="scope-' + escapeHtml(id) + '" value="month"' + (choice === "month" ? " checked" : "") + '> 이번 달만</label>' +
+        '</div></td>' +
       '</tr>'
     );
   }).join("");
   var html =
-    '<p style="margin:0 0 14px; color:var(--text-dim); font-size:13px;">방금 수정한 금액이 ' + relevantIds.length + '건 있습니다. 항목마다 반영 범위를 선택해주세요.</p>' +
-    '<div class="table-scroll"><table><thead><tr><th>항목</th><th class="num">변경 내용</th><th>반영 범위</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
-    '<div style="text-align:right; margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">' +
+    '<p style="margin:0 0 14px; color:var(--text-dim); font-size:13px;">수정한 금액이 ' + ids.length + '건 있습니다. 항목마다 반영 범위를 선택해주세요. ' +
+      '(전체 적용: 기본값을 바꿔 다른 달에도 이어짐 · 이번 달만: ' + escapeHtml(formatMonthLabel(currentMonth)) + '에만 적용)</p>' +
+    '<div class="table-scroll"><table class="compact"><thead><tr><th>구분</th><th>항목</th><th class="num">변경</th><th>반영 범위</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' +
+    '<div class="modal-actions">' +
       '<button class="ghost" id="confirm-save-cancel">취소</button>' +
       '<button class="primary" id="confirm-save-apply">저장</button>' +
     '</div>';
-  openDynamicModal("변경사항 확인", html);
+  openDynamicModal("변경사항 확인", html, null);
   document.getElementById("confirm-save-cancel").addEventListener("click", closeEditModal);
   document.getElementById("confirm-save-apply").addEventListener("click", function(){
-    applyPendingChoicesAndSave(currentPerson, relevantIds);
+    ids.forEach(function(id){
+      var input = document.querySelector('input[name="scope-' + CSS.escape(id) + '"]:checked');
+      scopeChoices[id] = input ? input.value : "all";
+    });
+    closeEditModal();
+    onConfirm();
+  });
+}
+
+function buildPlan(p, month){
+  var monthData = clone(getMonthWork(p));
+  var fixed = clone(work.fixed[p]);
+  var inst = p === "minhyun" ? clone(work.inst.minhyun) : null;
+  monthData.fixedOverrides = monthData.fixedOverrides || {};
+  personPendingIds(p).forEach(function(id){
+    var c = pendingAmountChanges[id];
+    if(scopeChoices[id] === "month"){
+      monthData.fixedOverrides[id] = Object.assign({}, monthData.fixedOverrides[id], { amount: c.newAmount });
+    } else {
+      var item = (fixed[c.listKey] || []).find(function(x){ return x.id === id; });
+      if(item) item.amount = c.newAmount;
+      // 전체 적용: 이 달의 금액 예외를 지움 (fixedOverrides 필드를 통째로 다시 쓰므로 서버에도 amount가 남지 않음)
+      var ov = monthData.fixedOverrides[id];
+      if(ov){
+        delete ov.amount;
+        if(Object.keys(ov).length === 0) delete monthData.fixedOverrides[id];
+      }
+    }
+  });
+  var baseline = overwriteBaseline[p] || { month: base.month[p], fixed: base.fixed[p], inst: base.inst[p] };
+  var writes = [];
+
+  var monthFields = (p === "joint" ? ["fixedOverrides"] : ["salary", "cards", "fixedOverrides"]).filter(function(f){
+    return canon(monthData[f]) !== canon(base.month[p][f]);
+  });
+  if(monthFields.length){
+    var md = {};
+    monthFields.forEach(function(f){ md[f] = monthData[f]; });
+    md.updatedAt = serverTimestamp();
+    writes.push({ person: p, kind: "month", ref: monthRef(p, month), data: md, mergeFields: monthFields.concat(["updatedAt"]), fields: monthFields, baseline: baseline.month });
+  }
+  var fixedFields = FIXED_KEYS[p].filter(function(k){ return canon(fixed[k]) !== canon(base.fixed[p][k]); });
+  if(fixedFields.length){
+    var fd = {};
+    fixedFields.forEach(function(k){ fd[k] = fixed[k]; });
+    writes.push({ person: p, kind: "fixed", ref: fixedRef(p), data: fd, mergeFields: fixedFields, fields: fixedFields, baseline: baseline.fixed });
+  }
+  if(p === "minhyun" && canon(inst) !== canon(base.inst.minhyun)){
+    writes.push({ person: p, kind: "inst", ref: instRef(), data: { installments: inst.installments }, mergeFields: ["installments"], fields: ["installments"], baseline: baseline.inst });
+  }
+  return { person: p, month: month, monthData: monthData, fixed: fixed, inst: inst, writes: writes };
+}
+
+async function doSave(persons, afterSuccess){
+  if(saving) return;
+  var month = currentMonth;
+  var plans = persons.map(function(p){ return buildPlan(p, month); });
+  var writes = [];
+  plans.forEach(function(plan){ writes = writes.concat(plan.writes); });
+  saving = true;
+  savingPersons = persons.slice();
+  stickyError = null;
+  updateChrome();
+  try {
+    if(writes.length){
+      await runTransaction(db, async function(tx){
+        var snaps = [];
+        for(var i = 0; i < writes.length; i++){ snaps.push(await tx.get(writes[i].ref)); }
+        writes.forEach(function(w, i){
+          var serverNow = normalizeKind(w.kind, w.person, snaps[i].exists() ? snaps[i].data() : null);
+          w.fields.forEach(function(f){
+            if(canon(serverNow[f]) !== canon(w.baseline[f])){
+              var e = new Error("다른 기기에서 " + PERSON_LABEL[w.person] + " 데이터가 먼저 바뀌었어요");
+              e.code = "budget-conflict";
+              e.person = w.person;
+              throw e;
+            }
+          });
+        });
+        writes.forEach(function(w){ tx.set(w.ref, w.data, { mergeFields: w.mergeFields }); });
+      });
+    }
+  } catch(err){
+    saving = false;
+    savingPersons = [];
+    if(err && err.code === "budget-conflict"){
+      conflict[err.person] = true;
+      conflictAck[err.person] = false;
+      delete overwriteBaseline[err.person];
+      stickyError = "저장 실패: " + err.message + ". 내용을 확인한 뒤 다시 저장해 주세요. (작성 중인 값은 그대로 있어요)";
+    } else {
+      stickyError = "저장 실패: " + ((err && (err.code || err.message)) || "알 수 없는 오류") + " (작성 중인 값은 그대로 있어요)";
+    }
+    refreshComputed();
+    return;
+  }
+
+  // 성공: 저장한 내용을 기준(base)으로 삼고, 서버에서 다시 읽어 최신 상태와 맞춤
+  plans.forEach(function(plan){
+    var p = plan.person;
+    personPendingIds(p).forEach(function(id){ delete pendingAmountChanges[id]; delete scopeChoices[id]; });
+    conflict[p] = false;
+    conflictAck[p] = false;
+    delete overwriteBaseline[p];
+    base.month[p] = clone(plan.monthData); work.month[p] = clone(plan.monthData);
+    base.fixed[p] = clone(plan.fixed); work.fixed[p] = clone(plan.fixed);
+    if(plan.inst){ base.inst.minhyun = clone(plan.inst); work.inst.minhyun = clone(plan.inst); }
+  });
+  await Promise.all(plans.map(function(plan){ return refetchPerson(plan.person, plan.month); }));
+  saving = false;
+  savingPersons = [];
+  stickyError = null;
+  flashStatus("저장 완료", "ok");
+  requestRender();
+  if(afterSuccess) afterSuccess();
+}
+
+async function refetchPerson(p, month){
+  var refs = { month: monthRef(p, month), fixed: fixedRef(p), inst: p === "minhyun" ? instRef() : null };
+  await Promise.all(KINDS_FOR[p].map(async function(k){
+    try {
+      var snap = await getDocFromServer(refs[k]);
+      if(k === "month" && month !== currentMonth) return;
+      var data = normalizeKind(k, p, snap.exists() ? snap.data() : null);
+      server[k][p] = data;
+      work[k][p] = clone(data);
+      base[k][p] = clone(data);
+    } catch(_){ /* 오프라인 등: 방금 저장한 값을 그대로 기준으로 사용 */ }
+  }));
+}
+
+document.getElementById("save-salary-btn").addEventListener("click", function(){
+  startSave([currentPerson]);
+});
+
+/* ---------- 다른 기기 변경과 충돌 ---------- */
+function describeDiff(p){
+  var lines = [];
+  var sm = server.month[p], wm = work.month[p], bm = base.month[p];
+  if(sm && wm && bm){
+    if(p !== "joint" && canon(wm.salary) !== canon(bm.salary)){
+      lines.push("월급: 서버 " + fmt(sm.salary) + " / 내 값 " + fmt(wm.salary));
+    }
+    if(p !== "joint" && canon(wm.cards) !== canon(bm.cards)) diffById(sm.cards, wm.cards, "카드 사용금액", function(c){ return fmt(c.amount); }, lines);
+    if(canon(wm.fixedOverrides) !== canon(bm.fixedOverrides) && canon(sm.fixedOverrides) !== canon(wm.fixedOverrides)){
+      lines.push("이번 달 체크 상태·이번 달만 적용 금액이 서버와 달라요 (내 값으로 저장됨)");
+    }
+  }
+  FIXED_KEYS[p].forEach(function(k){
+    var s = server.fixed[p] && server.fixed[p][k];
+    var w = work.fixed[p] && work.fixed[p][k];
+    var b = base.fixed[p] && base.fixed[p][k];
+    if(s && w && b && canon(w) !== canon(b)) diffById(s, w, LIST_LABEL[k], function(x){ return fmt(x.amount); }, lines);
+  });
+  if(p === "minhyun" && server.inst.minhyun && work.inst.minhyun && canon(work.inst.minhyun) !== canon(base.inst.minhyun)){
+    diffById(server.inst.minhyun.installments, work.inst.minhyun.installments, "카드 할부", function(x){ return fmt(x.monthlyAmount); }, lines);
+  }
+  personPendingIds(p).forEach(function(id){
+    var c = pendingAmountChanges[id];
+    lines.push((LIST_LABEL[c.listKey] || "") + " '" + c.name + "': 저장할 금액 " + fmt(c.newAmount));
+  });
+  return lines;
+}
+function diffById(sArr, wArr, label, valFn, lines){
+  sArr = sArr || []; wArr = wArr || [];
+  var before = lines.length;
+  var sMap = {}, wMap = {};
+  sArr.forEach(function(x){ sMap[x.id] = x; });
+  wArr.forEach(function(x){ wMap[x.id] = x; });
+  wArr.forEach(function(w){
+    var s = sMap[w.id];
+    if(!s) lines.push(label + " '" + w.name + "': 내 변경에만 있음 (" + valFn(w) + ")");
+    else if(canon(s) !== canon(w)) lines.push(label + " '" + w.name + "': 서버 " + valFn(s) + (s.name !== w.name ? " ('" + s.name + "')" : "") + " / 내 값 " + valFn(w));
+  });
+  sArr.forEach(function(s){
+    if(!wMap[s.id]) lines.push(label + " '" + s.name + "': 서버에만 있음 (" + valFn(s) + ") — 내 값으로 저장하면 없어져요");
+  });
+  if(lines.length === before && canon(sArr.map(function(x){ return x.id; })) !== canon(wArr.map(function(x){ return x.id; }))){
+    lines.push(label + ": 항목 순서가 서버와 달라요");
+  }
+}
+function showCompareModal(persons, onConfirm){
+  var body = persons.map(function(p){
+    var lines = describeDiff(p);
+    return '<h3>' + escapeHtml(PERSON_LABEL[p]) + '</h3><ul style="margin:0 0 14px; padding-left:18px; font-size:13px; line-height:1.7;">' +
+      (lines.length ? lines.map(function(l){ return '<li>' + escapeHtml(l) + '</li>'; }).join("") : '<li>내가 바꾼 칸은 서버와 같아요.</li>') +
+      '</ul>';
+  }).join("");
+  var html =
+    '<p style="margin:0 0 14px; color:var(--text-dim); font-size:13px;">편집하는 동안 다른 기기에서 서버 값이 바뀌었어요. 내가 바꾼 칸만 아래처럼 내 값으로 저장되고, 내가 건드리지 않은 칸은 서버 값이 유지돼요.</p>' +
+    body +
+    '<div class="modal-actions">' +
+      '<button class="ghost" id="compare-cancel">취소</button>' +
+      '<button class="primary" id="compare-apply">내 값으로 저장</button>' +
+    '</div>';
+  openDynamicModal("서버 값과 비교", html, null);
+  document.getElementById("compare-cancel").addEventListener("click", closeEditModal);
+  document.getElementById("compare-apply").addEventListener("click", function(){
+    persons.forEach(function(p){
+      overwriteBaseline[p] = { month: clone(server.month[p]), fixed: clone(server.fixed[p]), inst: clone(server.inst[p]) };
+    });
+    closeEditModal();
+    onConfirm();
+  });
+}
+function renderConflictBanner(){
+  var el = document.getElementById("conflict-banner");
+  var persons = PERSONS.filter(function(p){ return conflict[p]; });
+  if(!persons.length){
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  var key = persons.map(function(p){ return p + ":" + (conflictAck[p] ? 1 : 0); }).join(",");
+  if(el.dataset.key === key && el.style.display !== "none") return;
+  el.dataset.key = key;
+  el.style.display = "";
+  el.innerHTML = persons.map(function(p){
+    if(conflictAck[p]){
+      return '<div class="notice-row"><span><strong>' + escapeHtml(PERSON_LABEL[p]) + '</strong>: 내 변경을 유지 중이에요. 저장할 때 서버 값과 비교한 뒤 저장해요.</span>' +
+        '<button class="icon-btn" data-conflict-load="' + p + '">서버 값 불러오기</button></div>';
+    }
+    return '<div class="notice-row"><span>다른 기기에서 <strong>' + escapeHtml(PERSON_LABEL[p]) + '</strong> 데이터가 바뀌었어요. 작성 중인 값은 그대로 있어요.</span>' +
+      '<span style="display:inline-flex; gap:6px;"><button class="icon-btn" data-conflict-load="' + p + '">서버 값 불러오기</button>' +
+      '<button class="icon-btn" data-conflict-keep="' + p + '">내 변경 유지</button></span></div>';
+  }).join("");
+  el.querySelectorAll("[data-conflict-load]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var p = btn.getAttribute("data-conflict-load");
+      if(!confirm(PERSON_LABEL[p] + "의 저장하지 않은 변경을 버리고 서버 값을 불러올까요?")) return;
+      discardPerson(p);
+      stickyError = null;
+      requestRender();
+    });
+  });
+  el.querySelectorAll("[data-conflict-keep]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      conflictAck[btn.getAttribute("data-conflict-keep")] = true;
+      stickyError = null;
+      updateChrome();
+    });
+  });
+}
+
+/* ---------- 서버 구독 (승인된 계정 확인 후에만 시작) ---------- */
+function handleServer(kind, p, data){
+  server[kind][p] = data;
+  if(saving && savingPersons.indexOf(p) !== -1){
+    updateChrome();
+    return; // 저장이 끝나면 refetchPerson()이 최신 값으로 맞춤
+  }
+  if(work[kind][p] == null || !kindTouched(p, kind)){
+    work[kind][p] = clone(data);
+    base[kind][p] = clone(data);
+  } else if(canon(data) !== canon(base[kind][p])){
+    // 미저장 편집이 있는 상태에서 서버 값이 바뀜 → 덮어쓰지 않고 충돌로 표시
+    conflict[p] = true;
+    conflictAck[p] = false;
+    delete overwriteBaseline[p];
+  }
+  if(conflict[p] && !isDirty(p)) conflict[p] = false;
+  requestRender();
+  updateChrome();
+}
+function onListenError(err){
+  connError = "연결 실패: " + (err && (err.code || err.message)) + " (새로고침해 주세요)";
+  updateChrome();
+}
+function subscribeMonth(p){
+  var month = currentMonth;
+  monthUnsubs[p] = onSnapshot(monthRef(p, month), function(snap){
+    if(month !== currentMonth) return; // 이전 달 응답이 늦게 와도 무시
+    handleServer("month", p, normalizeMonth(p, snap.exists() ? snap.data() : null));
+  }, onListenError);
+}
+function startSubscriptions(){
+  PERSONS.forEach(function(p){
+    subscribeMonth(p);
+    otherUnsubs.push(onSnapshot(fixedRef(p), function(snap){
+      handleServer("fixed", p, normalizeFixed(p, snap.exists() ? snap.data() : null));
+    }, onListenError));
+  });
+  otherUnsubs.push(onSnapshot(instRef(), function(snap){
+    handleServer("inst", "minhyun", normalizeInst(snap.exists() ? snap.data() : null));
+  }, onListenError));
+  subscribeAssets();
+}
+
+/* ---------- 자산 현황 (추가·삭제는 누르는 즉시 서버에 저장) ---------- */
+var loansCache = [];
+var savingsCache = [];
+
+/* 자산 금액 입력 검증: 음수·소수·숫자 아닌 값은 다른 금액으로 바꾸지 않고 오류로 알려줌 */
+function parseStrictAmount(raw, label){
+  var s = String(raw == null ? "" : raw).trim();
+  if(!s) return { error: label + "을(를) 입력해 주세요." };
+  if(s.indexOf("-") !== -1) return { error: label + "에 음수는 넣을 수 없어요." };
+  if(s.indexOf(".") !== -1) return { error: label + "에 소수는 넣을 수 없어요. 원 단위 정수로 입력해 주세요." };
+  if(!/^[\d,]+$/.test(s)) return { error: label + "에는 숫자와 쉼표(,)만 입력할 수 있어요." };
+  if(!/^\d+$/.test(s) && !/^\d{1,3}(,\d{3})*$/.test(s)) return { error: label + "의 쉼표 위치가 올바르지 않아요." };
+  var n = Number(s.replace(/,/g, ""));
+  if(!Number.isSafeInteger(n)) return { error: label + "이(가) 너무 커요." };
+  return { value: n };
+}
+function showAssetError(id, msg){
+  var el = document.getElementById(id);
+  el.textContent = msg || "";
+  el.style.display = msg ? "" : "none";
+}
+document.querySelectorAll("input.asset-amount").forEach(function(el){
+  el.addEventListener("blur", function(){
+    var r = parseStrictAmount(el.value, "금액");
+    if(r.value !== undefined) el.value = r.value ? r.value.toLocaleString("ko-KR") : "0";
   });
 });
 
-function subscribeSalary(personId){
-  var docId = monthDocId(personId, currentMonth);
-  salaryUnsubs[personId] = onSnapshot(doc(db, "budget_salaryProfiles", docId), function(snap){
-    if(snap.exists()){
-      salaryCache[personId] = snap.data();
-    } else {
-      salaryCache[personId] = emptySalary(personId);
-    }
-    if(currentPerson === personId || currentPerson === "joint") renderSalary();
+function confirmAndDeleteAsset(item, kindLabel){
+  if(!confirm("'" + item.name + "' " + kindLabel + " 항목을 삭제할까요?\n저장 버튼 없이 바로 서버에서 삭제되고 되돌릴 수 없어요.")) return;
+  deleteDoc(doc(db, ASSET_COL, item.id)).then(function(){
+    stickyError = null;
+    flashStatus("삭제 완료", "ok");
+  }).catch(function(err){
+    stickyError = "삭제 실패: " + (err.code || err.message);
+    updateChrome();
   });
 }
-
-function subscribeInstallments(personId){
-  onSnapshot(doc(db, "budget_salaryProfiles", personId + "_installments"), function(snap){
-    installmentsCache[personId] = snap.exists() ? (snap.data().installments || []) : defaultInstallments(personId);
-    if(currentPerson === personId || currentPerson === "joint") renderSalary();
-  });
-}
-
-function subscribeFixed(personId){
-  onSnapshot(doc(db, "budget_salaryProfiles", personId + "_fixed"), function(snap){
-    fixedCache[personId] = snap.exists() ? snap.data() : defaultFixed(personId);
-    if(currentPerson === personId || currentPerson === "joint") renderSalary();
-  });
-}
-
-/* ---------- 자산 현황 ---------- */
-var loansCache = [];
-var savingsCache = [];
 
 function renderAssets(){
   var loanTbody = document.getElementById("loans-body");
   loanTbody.innerHTML = "";
-  var limitTotal = 0, usedTotal = 0, balanceTotal = 0;
+  var limitTotal = 0, usedTotal = 0, availableTotal = 0;
   loansCache.forEach(function(item){
     var limit = Number(item.limit) || 0;
     var used = Number(item.used) || 0;
-    var balance = limit - used;
-    limitTotal += limit; usedTotal += used; balanceTotal += balance;
+    var available = limit - used; // 사용 가능 금액 (마이너스통장 기준: 한도 - 사용액)
+    limitTotal += limit; usedTotal += used; availableTotal += available;
+    var over = used > limit;
     var tr = document.createElement("tr");
     tr.innerHTML =
       '<td>' + escapeHtml(item.owner) + '</td>' +
       '<td>' + escapeHtml(item.name) + '</td>' +
       '<td class="num">' + fmtPlain(limit) + '</td>' +
       '<td class="num">' + fmtPlain(used) + '</td>' +
-      '<td class="num">' + fmtPlain(balance) + '</td>' +
+      '<td class="num"' + (over ? ' style="color:var(--bad);"' : "") + '>' + fmtPlain(available) + (over ? ' <span style="font-size:11px;">(한도 초과)</span>' : "") + '</td>' +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
-    tr.querySelector("button").addEventListener("click", function(){
-      deleteDoc(doc(db, "budget_assets", item.id));
-    });
+    tr.querySelector("button").addEventListener("click", function(){ confirmAndDeleteAsset(item, "대출"); });
     loanTbody.appendChild(tr);
   });
   document.getElementById("loan-limit-total").textContent = fmtPlain(limitTotal);
   document.getElementById("loan-used-total").textContent = fmtPlain(usedTotal);
-  document.getElementById("loan-balance-total").textContent = fmtPlain(balanceTotal);
-  document.getElementById("stat-loan-balance").textContent = fmt(balanceTotal);
+  document.getElementById("loan-available-total").textContent = fmtPlain(availableTotal);
+  document.getElementById("stat-loan-balance").textContent = fmt(usedTotal);
+  document.getElementById("stat-loan-available").textContent = fmt(availableTotal);
   document.getElementById("stat-loan-limit").textContent = fmt(limitTotal);
 
   var savingTbody = document.getElementById("savings-body");
@@ -2271,9 +2831,7 @@ function renderAssets(){
       '<td>' + escapeHtml(item.name) + '</td>' +
       '<td class="num">' + fmtPlain(amount) + '</td>' +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
-    tr.querySelector("button").addEventListener("click", function(){
-      deleteDoc(doc(db, "budget_assets", item.id));
-    });
+    tr.querySelector("button").addEventListener("click", function(){ confirmAndDeleteAsset(item, "적금"); });
     savingTbody.appendChild(tr);
   });
   document.getElementById("saving-total").textContent = fmtPlain(savingTotal);
@@ -2281,7 +2839,7 @@ function renderAssets(){
 }
 
 function subscribeAssets(){
-  onSnapshot(collection(db, "budget_assets"), function(snap){
+  otherUnsubs.push(onSnapshot(collection(db, ASSET_COL), function(snap){
     loansCache = [];
     savingsCache = [];
     snap.forEach(function(d){
@@ -2291,71 +2849,256 @@ function subscribeAssets(){
       else if(data.kind === "saving") savingsCache.push(item);
     });
     renderAssets();
-  });
+  }, onListenError));
 }
 
 document.getElementById("add-loan-btn").addEventListener("click", function(){
+  var btn = this;
   var owner = document.getElementById("loan-owner").value;
   var name = document.getElementById("loan-name").value.trim();
-  var limit = parseAmount(document.getElementById("loan-limit").value);
-  var used = parseAmount(document.getElementById("loan-used").value);
-  if(!name) return;
-  addDoc(collection(db, "budget_assets"), {
-    kind: "loan", owner: owner, name: name, limit: limit, used: used,
+  if(!name) return showAssetError("loan-error", "항목명을 입력해 주세요.");
+  var limit = parseStrictAmount(document.getElementById("loan-limit").value, "한도");
+  if(limit.error) return showAssetError("loan-error", limit.error);
+  var used = parseStrictAmount(document.getElementById("loan-used").value, "사용액");
+  if(used.error) return showAssetError("loan-error", used.error);
+  if(used.value > limit.value) return showAssetError("loan-error", "사용액(" + fmt(used.value) + ")이 한도(" + fmt(limit.value) + ")보다 커요. 금액을 확인해 주세요.");
+  showAssetError("loan-error", "");
+  btn.disabled = true;
+  addDoc(collection(db, ASSET_COL), {
+    kind: "loan", owner: owner, name: name, limit: limit.value, used: used.value,
     createdAt: serverTimestamp()
   }).then(function(){
     document.getElementById("loan-name").value = "";
     document.getElementById("loan-limit").value = "";
     document.getElementById("loan-used").value = "";
-  }).catch(function(err){ flashStatus("추가 실패: " + err.message, false); });
+    stickyError = null;
+    flashStatus("대출 추가 저장 완료", "ok");
+  }).catch(function(err){
+    showAssetError("loan-error", "추가 실패: " + (err.code || err.message));
+  }).finally(function(){ btn.disabled = false; });
 });
 
 document.getElementById("add-saving-btn").addEventListener("click", function(){
+  var btn = this;
   var owner = document.getElementById("saving-owner").value;
   var name = document.getElementById("saving-name").value.trim();
-  var amount = parseAmount(document.getElementById("saving-amount").value);
-  if(!name) return;
-  addDoc(collection(db, "budget_assets"), {
-    kind: "saving", owner: owner, name: name, amount: amount,
+  if(!name) return showAssetError("saving-error", "항목명을 입력해 주세요.");
+  var amount = parseStrictAmount(document.getElementById("saving-amount").value, "금액");
+  if(amount.error) return showAssetError("saving-error", amount.error);
+  showAssetError("saving-error", "");
+  btn.disabled = true;
+  addDoc(collection(db, ASSET_COL), {
+    kind: "saving", owner: owner, name: name, amount: amount.value,
     createdAt: serverTimestamp()
   }).then(function(){
     document.getElementById("saving-name").value = "";
     document.getElementById("saving-amount").value = "";
-  }).catch(function(err){ flashStatus("추가 실패: " + err.message, false); });
+    stickyError = null;
+    flashStatus("적금 추가 저장 완료", "ok");
+  }).catch(function(err){
+    showAssetError("saving-error", "추가 실패: " + (err.code || err.message));
+  }).finally(function(){ btn.disabled = false; });
 });
 
-/* ---------- 상태 표시 ---------- */
+/* ---------- 상태 표시 ----------
+   우선순위: 로그인/권한 > 연결 실패 > 저장 중 > 저장 실패 > (잠깐) 저장 완료 > 불러오는 중 > 미저장 변경 > 저장됨
+   실패 메시지는 다음 저장이 성공하거나 상태 문구를 눌러 닫기 전까지 유지 */
+var authStatus = { text: "로그인 확인 중…", cls: "busy" };
+var connError = null;
+var stickyError = null;
+var statusTransient = null;
 var statusTimer = null;
-function flashStatus(msg, ok){
-  statusEl.textContent = msg;
-  statusEl.className = ok ? "ok" : "err";
+
+function updateStatus(){
+  var text, cls;
+  if(authStatus){ text = authStatus.text; cls = authStatus.cls; }
+  else if(connError){ text = connError; cls = "err"; }
+  else if(saving){ text = "저장 중…"; cls = "busy"; }
+  else if(stickyError){ text = stickyError; cls = "err"; }
+  else if(statusTransient){ text = statusTransient.text; cls = statusTransient.cls; }
+  else if(!allReady()){ text = "불러오는 중…"; cls = "busy"; }
+  else {
+    var dirty = dirtyPersons();
+    if(dirty.length){ text = "미저장 변경 있음 (" + labelsOf(dirty) + ")"; cls = "warn"; }
+    else { text = "저장됨 · 연결됨"; cls = "ok"; }
+  }
+  statusEl.textContent = text;
+  statusEl.className = cls;
+  statusEl.title = stickyError ? "눌러서 오류 메시지 닫기" : "";
+}
+function flashStatus(text, cls){
+  statusTransient = { text: text, cls: cls };
   clearTimeout(statusTimer);
   statusTimer = setTimeout(function(){
-    statusEl.textContent = "연결됨";
-    statusEl.className = "ok";
-  }, 2000);
+    statusTransient = null;
+    updateStatus();
+  }, 2500);
+  updateStatus();
+}
+statusEl.addEventListener("click", function(){
+  if(stickyError){ stickyError = null; updateStatus(); }
+});
+
+function updateChrome(){
+  var ready = allReady();
+  var area = document.getElementById("salary-work-area");
+  area.inert = !ready || saving;
+  area.classList.toggle("is-loading", !ready);
+  area.classList.toggle("is-saving", saving);
+  document.getElementById("loading-note").style.display = ready ? "none" : "";
+  document.getElementById("month-prev-btn").disabled = saving;
+  document.getElementById("month-next-btn").disabled = saving;
+  var dirty = dirtyPersons();
+  document.querySelectorAll("#person-tabs button").forEach(function(b){
+    b.classList.toggle("dirty", dirty.indexOf(b.getAttribute("data-person")) !== -1);
+  });
+  var saveBtn = document.getElementById("save-salary-btn");
+  saveBtn.disabled = !ready || saving || !isDirty(currentPerson);
+  saveBtn.textContent = saving ? "저장 중…" : (PERSON_LABEL[currentPerson] + " 저장");
+  var note = document.getElementById("dirty-note");
+  note.textContent = dirty.length ? "저장 안 된 변경: " + labelsOf(dirty) : "저장 안 된 변경 없음";
+  note.classList.toggle("has-dirty", dirty.length > 0);
+  renderConflictBanner();
+  updateStatus();
 }
 
-/* ---------- 인증 & 초기화 ---------- */
-onAuthStateChanged(auth, function(user){
-  if(user){
-    statusEl.textContent = "연결됨";
-    statusEl.className = "ok";
-    subscribeSalary("minhyun");
-    subscribeSalary("minyoung");
-    subscribeSalary("joint");
-    subscribeInstallments("minhyun");
-    subscribeFixed("minhyun");
-    subscribeFixed("minyoung");
-    subscribeFixed("joint");
-    subscribeAssets();
+window.addEventListener("beforeunload", function(e){
+  if(saving || dirtyPersons().length){
+    e.preventDefault();
+    e.returnValue = "";
   }
 });
 
-signInAnonymously(auth).catch(function(err){
-  statusEl.textContent = "연결 실패: " + err.message;
-  statusEl.className = "err";
+/* ---------- 로그인 & 권한 확인 ----------
+   Google 로그인 → budget_members/{uid} 문서가 있는 계정만 데이터 구독 시작.
+   (실제 보호는 Firestore 보안 규칙이 담당. 이 화면 처리는 편의용이며 규칙 없이 보안이 되지는 않음) */
+function showGate(mode, user, err){
+  authorized = false;
+  document.getElementById("app-main").style.display = "none";
+  document.getElementById("auth-gate").style.display = "";
+  document.getElementById("user-box").style.display = user ? "" : "none";
+  if(user) document.getElementById("user-email").textContent = user.email || "(이메일 없음)";
+  var title = document.getElementById("gate-title");
+  var msg = document.getElementById("gate-msg");
+  var account = document.getElementById("gate-account");
+  var loginBtn = document.getElementById("login-btn");
+  account.style.display = "none";
+  loginBtn.style.display = "none";
+  if(mode === "login"){
+    title.textContent = "로그인이 필요해요";
+    msg.textContent = "민현·민영으로 승인된 Google 계정으로 로그인하면 가계부를 볼 수 있어요.";
+    loginBtn.style.display = "";
+    authStatus = { text: "로그인 필요", cls: "warn" };
+  } else if(mode === "checking"){
+    title.textContent = "권한 확인 중…";
+    msg.textContent = "승인된 계정인지 확인하고 있어요.";
+    authStatus = { text: "권한 확인 중…", cls: "busy" };
+  } else if(mode === "denied"){
+    title.textContent = "승인되지 않은 계정이에요";
+    msg.textContent = "이 계정은 아직 가계부 사용이 승인되지 않았어요. 아래 UID를 Firebase 콘솔의 budget_members 컬렉션에 등록하면 사용할 수 있어요.";
+    account.style.display = "";
+    document.getElementById("gate-email").textContent = user.email || "(이메일 없음)";
+    document.getElementById("gate-uid").textContent = user.uid;
+    authStatus = { text: "승인되지 않은 계정", cls: "err" };
+  } else {
+    title.textContent = "권한을 확인하지 못했어요";
+    msg.textContent = "연결 오류: " + ((err && (err.code || err.message)) || "알 수 없음") + " — 새로고침해 주세요.";
+    authStatus = { text: "연결 실패", cls: "err" };
+  }
+  updateStatus();
+}
+function showApp(user){
+  authStatus = null;
+  authorized = true;
+  document.getElementById("auth-gate").style.display = "none";
+  document.getElementById("app-main").style.display = "";
+  document.getElementById("user-box").style.display = "";
+  document.getElementById("user-email").textContent = user.email || "";
+}
+
+document.getElementById("login-btn").addEventListener("click", function(){
+  var provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  signInWithPopup(auth, provider).catch(function(err){
+    if(err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment"){
+      return signInWithRedirect(auth, provider);
+    }
+    if(err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request"){
+      document.getElementById("gate-msg").textContent = "로그인 실패: " + err.code;
+    }
+  });
 });
+getRedirectResult(auth).catch(function(err){
+  document.getElementById("gate-msg").textContent = "로그인 실패: " + err.code;
+});
+function doSignOut(){
+  if(dirtyPersons().length && !confirm("저장하지 않은 변경이 있어요. 버리고 로그아웃할까요?")) return;
+  dirtyPersons().forEach(discardPerson);
+  signOut(auth).then(function(){ location.reload(); });
+}
+document.getElementById("logout-btn").addEventListener("click", doSignOut);
+document.getElementById("gate-logout-btn").addEventListener("click", doSignOut);
+document.getElementById("gate-copy-uid").addEventListener("click", function(){
+  var uidText = document.getElementById("gate-uid").textContent;
+  if(navigator.clipboard) navigator.clipboard.writeText(uidText).then(function(){ document.getElementById("gate-copy-uid").textContent = "복사됨"; });
+});
+
+var authSeq = 0;
+onAuthStateChanged(auth, async function(user){
+  var seq = ++authSeq;
+  if(!user){
+    if(AUTH_MODE === "anonymous"){
+      authStatus = { text: "연결 중…", cls: "busy" };
+      updateStatus();
+      signInAnonymously(auth).catch(function(err){ showGate("error", null, err); });
+      return;
+    }
+    showGate("login", null);
+    return;
+  }
+  if(AUTH_MODE === "anonymous"){
+    if(seq !== authSeq) return;
+    showApp(user);
+    document.getElementById("logout-btn").style.display = "none";
+    document.getElementById("user-email").textContent = "";
+    startSubscriptions();
+    updateChrome();
+    return;
+  }
+  if(user.isAnonymous){
+    // 승인 계정 모드에서는 익명 로그인을 쓰지 않음
+    signOut(auth);
+    return;
+  }
+  showGate("checking", user);
+  try {
+    var snap = await getDoc(doc(db, MEMBER_COL, user.uid));
+    if(seq !== authSeq) return;
+    if(snap.exists()){
+      showApp(user);
+      startSubscriptions();
+      updateChrome();
+    } else {
+      showGate("denied", user);
+    }
+  } catch(err){
+    if(seq !== authSeq) return;
+    showGate(err && err.code === "permission-denied" ? "denied" : "error", user, err);
+  }
+});
+
+if(USE_EMULATOR){
+  window.__budgetTest = {
+    signIn: function(email, password){ return signInWithEmailAndPassword(auth, email, password); },
+    state: function(){
+      return {
+        currentMonth: currentMonth, currentPerson: currentPerson, saving: saving, authorized: authorized,
+        ready: allReady(), dirty: dirtyPersons(), conflict: clone(conflict), pending: clone(pendingAmountChanges),
+        stickyError: stickyError
+      };
+    }
+  };
+}
 </script>
 </body>
 </html>

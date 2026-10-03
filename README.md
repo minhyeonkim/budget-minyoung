@@ -6,13 +6,30 @@
 
 https://minhyeonkim.github.io/budget-minyoung/
 
-(GitHub Pages로 배포됨. 어디서든 위 링크로 접속해 수정하면 실시간으로 Firestore에 저장되고, 다른 기기에서도 같은 내용을 바로 볼 수 있습니다. 모바일 화면에도 맞춰져 있습니다.)
+(GitHub Pages로 배포됨. **현재는 임시로 예전과 같은 익명 로그인 모드**라 링크만 열면 바로 쓸 수 있습니다 — 아래 "보안 설정 절차"를 마치면 승인된 Google 계정만 쓰도록 바꿉니다. 모바일 화면에도 맞춰져 있습니다. 저장 방식은 아래 "저장 방식"을 참고하세요 — 월급·고정비는 **저장 버튼을 눌러야** 서버에 반영됩니다.)
+
+## 저장 방식
+
+| 대상 | 저장 시점 |
+|---|---|
+| 월급, 카드 사용금액, 고정비(금액·체크·항목명·계좌·은행·이체일, 추가·삭제·순서), 카드 할부, 생활비 사용 계획 | **수동 저장** — 화면 아래 `[민현 저장]` 같은 버튼을 눌러야 서버에 반영. 누르기 전까지는 "미저장 변경"으로 표시 |
+| 자산 현황(대출·적금) 추가·삭제 | **즉시 저장** — 버튼을 누르는 순간 서버에 반영 (삭제는 확인창을 거침) |
+
+- 저장하지 않은 변경이 있으면 사람 탭에 `•` 표시와 함께 "저장 안 된 변경: 민현, 민영"처럼 누구 변경인지 보여줍니다. 사람 탭을 바꿔도 각자 작성 중인 값은 유지됩니다.
+- 미저장 상태에서 달을 바꾸려 하면 `저장 후 이동 / 변경 취소 후 이동 / 이동 취소` 중 선택합니다. 저장 범위 선택창에서 취소하거나 저장에 실패하면 이동하지 않고 변경도 유지됩니다.
+- 미저장 상태에서 새로고침하거나 페이지를 닫으면 브라우저 경고가 뜹니다(브라우저가 허용하는 범위에서).
+- 달을 옮긴 직후 새 달 데이터를 다 받기 전에는 편집·저장이 잠깁니다. 빠르게 여러 번 옮겨도 마지막 달 데이터만 표시됩니다.
+- 저장은 바뀐 문서·필드만 Firestore transaction 한 번으로 씁니다 (월별 문서·고정비·할부가 일부만 저장되는 일 없음, 바꾸지 않은 필드나 다른 사람 문서는 덮어쓰지 않음). 저장을 누른 순간의 사람·달·내용으로 고정되어, 저장 도중 탭이나 달을 바꿔도 대상이 바뀌지 않습니다.
+- 편집 중에 다른 기기에서 같은 데이터가 바뀌면 덮어쓰지 않고 안내가 뜹니다: `서버 값 불러오기`(내 변경 버림) 또는 `내 변경 유지`(저장할 때 서버 값과 비교 화면을 보고 저장).
+- 상단 상태 표시: `불러오는 중 / 미저장 변경 있음 / 저장 중 / 저장 완료 / 저장 실패 / 연결 실패`. 실패 메시지는 저절로 사라지지 않고, 다음 저장이 성공하거나 문구를 눌러 닫을 때까지 남습니다.
 
 ## 구조
 
 - `index.html` 파일 하나로 동작하는 정적 웹페이지입니다. 별도 서버/빌드 과정이 없습니다.
 - Firebase 프로젝트: `calendar-minyoung` ([malang-calendar-personal](../malang-calendar-personal)과 동일 프로젝트를 공유하되, 컬렉션을 분리해서 사용)
-- 로그인 화면은 없지만, 내부적으로 Firebase 익명 로그인을 한 번 하고 나서만 Firestore 읽기/쓰기가 허용됩니다.
+- 로그인 방식은 `index.html`의 `AUTH_MODE`로 정합니다. 현재 값은 `"anonymous"`(임시, 예전과 같은 익명 로그인 — **링크만 알면 누구나 볼 수 있어 보안 없음**). 보안 설정을 마친 뒤 `"member"`로 바꿔 배포하면:
+- Google 계정으로 로그인하고, `budget_members/{uid}` 에 등록된(승인된) 계정만 데이터를 보고 수정할 수 있습니다. 승인 확인 전에는 금융정보를 표시하거나 구독하지 않습니다. (예전 버전의 익명 로그인은 더 이상 쓰지 않습니다.)
+- **실제 보호는 Firestore 보안 규칙(`firestore.rules`)이 합니다.** 화면에서 막는 것만으로는 보안이 되지 않으므로, 아래 "보안 설정 절차"대로 규칙을 콘솔에 적용해야 합니다.
 
 ## 기능
 
@@ -24,7 +41,7 @@ https://minhyeonkim.github.io/budget-minyoung/
    - 민영: 월급분배의 고정비 항목을 은행(bank)별로 묶어 보여주는 고정금(현금) + 현대카드/우리카드 고정금(`cardFixedHyundai`/`cardFixedWoori`)
 3. **공동자산** (민현/민영 옆의 3번째 탭, 초안) — 민현은 "월급분석" 탭(고정금·카드 고정금·할부까지 반영), 민영은 "월급분배" 탭의 남는 생활비를 그대로 더해서, 이번 달 둘이 합쳐 쓸 수 있는 생활비를 보여줌. 상단 월 이동(◀▶)에 따라 그 달 기준으로 다시 계산됨.
    - 아래 **생활비 사용 계획** 표(식비/용돈 등)에 항목·금액을 넣으면 합계와 차액(생활비 - 합계)을 실시간으로 보여줌. 저장 구조는 고정금과 같음: `budget_salaryProfiles/joint_fixed`의 `livingItems`(기본값) + `joint_{yyyy-mm}`의 `fixedOverrides`(달별 예외).
-4. **자산 현황** — 대출(마이너스통장 등)의 한도/사용액/잔액, 적금 목록을 관리하고 총 대출 잔액·총 적금을 요약.
+4. **자산 현황** — 대출(마이너스통장 등)의 한도/사용액, 적금 목록을 관리. 마이너스통장 기준으로 **대출 총 잔액 = 사용액 합계**, **사용 가능 금액 = 한도 − 사용액**으로 구분해서 표시 (예: 한도 3,000만·사용액 2,000만 → 대출 잔액 2,000만, 사용 가능 1,000만). 금액은 원 단위 정수만 받고, 음수·소수·사용액이 한도를 넘는 입력은 다른 값으로 바꾸지 않고 오류로 알려줍니다.
 
 상단의 달 이동, 민현/민영/공동자산 탭, 월급분배/월급분석 탭은 스크롤해도 화면 위에 고정됩니다.
 
@@ -34,12 +51,13 @@ https://minhyeonkim.github.io/budget-minyoung/
 
 고정금(기업/농협/KB카드/현대카드/민영 고정비)은 **"기본값(전역) + 달별 예외" 2단 구조**입니다. 금액이 바뀌면 보통 다음 달에도 계속 이어지는 성격이라, 매달 따로 관리하지 않고 하나의 기본값을 모든 달이 같이 보다가, 특정 달만 다르게 하고 싶을 때만 그 달에 예외를 얹는 방식입니다.
 
-- `budget_salaryProfiles/{personId}_fixed` — 고정금 항목의 **기본값(전역, 월 구분 없음)**. `{ fixedGiup, fixedNh, cardFixedKb, cardFixedHyundai }` (`minyoung`은 `{ fixedItems }`, 각 항목에 `account`(계좌번호)/`bank`(은행명) 필드가 추가로 있음 — 어느 계좌로 넣어야 하는지 보려고). 각 항목은 `{id, name, day?, account?, bank?, amount, enabled}`. 항목명/이체일/계좌정보/추가/삭제/순서변경은 항상 이 전역 문서에 바로 반영됩니다.
+- `budget_salaryProfiles/{personId}_fixed` — 고정금 항목의 **기본값(전역, 월 구분 없음)**. `{ fixedGiup, fixedNh, cardFixedKb, cardFixedHyundai }` (`minyoung`은 `{ fixedItems }`, 각 항목에 `account`(계좌번호)/`bank`(은행명) 필드가 추가로 있음 — 어느 계좌로 넣어야 하는지 보려고). 각 항목은 `{id, name, day?, account?, bank?, amount, enabled}`. 항목명/이체일/계좌정보/추가/삭제/순서변경은 저장 버튼을 누르면 이 전역 문서에 반영됩니다.
 - `cards`(신용카드 사용금액)는 민현/민영 둘 다 월별 문서 안에 있고 매달 0원으로 초기화됩니다. 민현은 `{id,name,bank,amount}`(이체 계산에 쓰임), 민영은 `{id,name,amount}`(계좌 구분 없이 단순 합산만).
 - `budget_salaryProfiles/{personId}_{yyyy-mm}` — **달별 문서** (예: `minhyun_2026-09`). 화면 상단 "◀ 2026년 9월 ▶" 화살표로 이동. 여기엔 `salary`(월급), `cards`(민현의 신용카드 사용금액), `fixedOverrides`가 들어있음.
   - `salary`와 `cards`의 금액은 **달마다 0원으로 초기화**됩니다 (고정금과 달리 월급·카드 사용액은 매달 달라지는 값이라 이전 달 값을 이어받지 않음). 아직 방문/저장하지 않은 달은 항상 월급 0, 카드 금액 0으로 보입니다.
   - `fixedOverrides`: `{ [항목id]: { amount?, enabled? } }` — 이 달에서만 기본값과 다르게 쓰고 싶은 항목의 예외 값. 체크박스(enabled)는 항상 이 달만의 예외로 저장됨(다른 달에 영향 없음).
-  - 금액을 수정하고 "저장"을 누르면, 바뀐 금액이 있는 항목마다 **"전체 적용"**(기본값 자체를 바꿔서 다른 모든 달에도 이어짐, 이 달의 예외가 있었다면 제거) 또는 **"이번 달만 적용"**(이 달의 `fixedOverrides`에만 저장, 기본값은 그대로) 중 선택하는 확인창이 뜸.
+  - 금액을 수정하고 "저장"을 누르면, 바뀐 금액이 있는 항목마다 **"전체 적용"**(기본값 자체를 바꿔서 다른 모든 달에도 이어짐, 이 달의 금액 예외가 있었다면 제거) 또는 **"이번 달만 적용"**(이 달의 `fixedOverrides`에만 저장, 기본값은 그대로) 중 선택하는 확인창이 뜸.
+  - 저장할 때 `fixedOverrides` 필드는 통째로 다시 씁니다(`mergeFields`). 그래서 "전체 적용"으로 지운 금액 예외가 서버에 남지 않습니다. 저장 시 `updatedAt`(서버 시각)도 함께 기록됩니다.
   - 화면에 보이는 실제 값 = 기본값에 `fixedOverrides` 있으면 덮어씌운 값.
   - (참고) 월별 분리 이전에 쓰던 `minhyun`/`minyoung` 문서, 그리고 고정금이 월별 문서에 그대로 들어있던 이전 버전의 필드들은 더 이상 앱에서 읽지 않는 예전 데이터입니다.
 - `budget_salaryProfiles/minhyun_installments` — 카드 할부. 월과 무관한 별도 문서 `{ installments: [{id, name, monthlyAmount, totalInstallments, anchorMonth, anchorInstallment, enabled}] }`.
@@ -50,32 +68,29 @@ https://minhyeonkim.github.io/budget-minyoung/
 - 계산: 기업은행 이체액 = fixedGiup(기본값+예외) 중 enabled 합계 + cards 중 bank=기업 합계 / 농협은행 이체액 = fixedNh(기본값+예외) 중 enabled 합계 + cards 중 bank=농협 합계 / 남는 생활비 = 월급 - 기업이체액 - 농협이체액
 - 월급분석 탭의 "고정금(현금)" 표는 fixedGiup/fixedNh를 그대로 보여주는 거울(mirror)이라, 월급계산 탭과 월급분석 탭 어느 쪽에서 고쳐도 같은 데이터가 바뀜. 예측 계산: 남는 생활비 = 월급 - (fixedGiup+fixedNh 중 enabled 합계) - (cardFixedKb+cardFixedHyundai 중 enabled 합계) - (할부 중 진행중인 것 합계). 대출현황(마이너스통장)은 여기 포함 안 함 — "자산 현황" 탭에서 별도 관리.
 - 실제 금액/항목명은 전부 Firestore에만 저장되어 있고, 코드/문서에는 포함하지 않습니다 (공개 저장소 배포 대비). `index.html`의 `defaultFixed`/`defaultInstallments`는 Firestore에 아직 아무것도 없을 때(최초 1회)만 쓰이는 빈 기본값입니다.
+- `budget_members/{uid}` — 승인된 계정 목록. 문서 ID = Firebase Auth UID, 내용은 `{ name: "민현" }`처럼 아무거나. 앱에서는 쓸 수 없고 Firebase 콘솔에서만 추가/삭제.
 - `budget_assets/{autoId}`
   - 공통: `kind`(`loan` | `saving`), `owner`(`민현`|`민영`|`공동`), `name`, `createdAt`
-  - `kind: loan`일 때: `limit`(한도), `used`(사용액) → 잔액은 클라이언트에서 `limit - used`로 계산
+  - `kind: loan`일 때: `limit`(한도), `used`(사용액 = 대출 잔액) → 사용 가능 금액은 클라이언트에서 `limit - used`로 계산
   - `kind: saving`일 때: `amount`(적금액)
 
-## Firestore 보안 규칙 (추가 필요)
+## 보안 설정 절차 (Firebase 콘솔에서 직접)
 
-기존 `calendar-minyoung` 프로젝트 규칙에 아래 두 블록을 추가해야 합니다.
+규칙 파일: [`firestore.rules`](firestore.rules) — **자동 배포하지 않습니다.** 같은 프로젝트를 말랑 캘린더도 쓰므로, 콘솔의 기존 규칙을 통째로 바꾸지 말고 가계부 부분만 추가/교체하세요.
 
-```
-rules_version = '2';
+1. **Google 로그인 켜기**: Firebase 콘솔 → `calendar-minyoung` → Authentication → Sign-in method → Google → 사용 설정.
+2. **승인 도메인 확인**: Authentication → Settings → 승인된 도메인에 `minhyeonkim.github.io`가 있는지 확인 (로컬에서 열 경우 `localhost`도).
+3. **규칙 적용**: Firestore Database → 규칙 탭에서 `firestore.rules`의 가계부 부분(`isBudgetMember` 함수, `budget_members`, `budget_salaryProfiles`, `budget_assets` 블록)을 기존 규칙에 넣고 게시. `events` 등 다른 앱 규칙은 그대로 둠. 게시 전 "규칙 플레이그라운드"로 확인 가능.
+4. **UID 확인**: 민현·민영이 각각 사이트에서 Google 로그인 → "승인되지 않은 계정" 화면에 나오는 UID를 복사.
+5. **승인 등록**: Firestore Database → 데이터에서 컬렉션 `budget_members` 생성 → 문서 ID에 4번 UID를 그대로 넣고 필드 `name`(문자열, 예: 민현) 추가. 두 사람 모두 등록.
+6. `index.html`의 `var AUTH_MODE = "anonymous";`를 `"member"`로 바꿔 배포합니다. (4번 UID 확인은 member 모드에서 "승인되지 않은 계정" 화면으로 하거나, Authentication → Users 목록에서 Google 계정의 사용자 UID를 봐도 됩니다.)
+7. 새로고침하면 가계부가 보입니다.
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /events/{eventId} {
-      allow read, write: if request.auth != null;
-    }
-    match /budget_salaryProfiles/{personId} {
-      allow read, write: if request.auth != null;
-    }
-    match /budget_assets/{assetId} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+순서 주의: 새 코드를 배포하면 4~5번이 끝날 때까지 두 사람 모두 "승인되지 않은 계정"으로 보입니다(데이터는 그대로 있음). 반대로 3번 규칙을 적용하기 전까지는 서버가 예전 규칙(`request.auth != null`)이라, 예전 버전 사이트나 익명 로그인으로도 데이터를 읽을 수 있는 상태가 계속됩니다.
+
+## 로컬 테스트 (Firebase Emulator)
+
+`localhost`에서 `index.html?emulator` 로 열면 앱이 내 컴퓨터의 Firebase Emulator(가짜 서버, `demo-budget` 프로젝트)에 연결되고 실제 서버에는 접근하지 않습니다. 배포된 사이트에서는 이 모드가 동작하지 않습니다.
 
 ## Firebase 설정값 위치
 
@@ -86,7 +101,7 @@ service cloud.firestore {
 1. 이 폴더를 개인 GitHub 저장소에 push 합니다. (현재: `minhyeonkim/budget-minyoung`, public)
 2. 저장소 설정(Settings) → Pages → Source에서 `main` 브랜치, 루트(`/`) 선택 후 저장합니다.
 3. 몇 분 후 `https://<깃허브아이디>.github.io/<저장소이름>/` 주소로 접속 가능합니다.
-4. Firebase 프로젝트가 `malang-calendar-personal`(`calendar-minyoung`)과 동일해서, 그쪽에서 이미 `minhyeonkim.github.io` 도메인이 Firebase Auth 승인된 도메인 목록에 등록되어 있어 별도 설정 없이 바로 익명 로그인이 됩니다.
+4. Firebase 프로젝트가 `malang-calendar-personal`(`calendar-minyoung`)과 동일해서 `minhyeonkim.github.io` 도메인이 이미 Firebase Auth 승인된 도메인에 등록되어 있습니다. Google 로그인과 승인 계정 설정은 위 "보안 설정 절차"를 따릅니다.
 
 공개 저장소이므로 실제 금액/계좌번호 등은 절대 코드에 하드코딩하지 않습니다 (모두 Firestore에만 저장).
 
