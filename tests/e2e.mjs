@@ -623,7 +623,10 @@ try {
     check("맞는 비밀번호: 가계부 열림 + 데이터 표시", (await val(pp, "#salary-amount")) !== "" && (await pp.$eval("#logout-btn", (e) => e.textContent)) === "잠그기");
     await pp.reload();
     await pp.waitForFunction(() => window.__budgetTest && window.__budgetTest.state().ready, { timeout: 15000 });
-    check("새로고침해도 다시 묻지 않음(이 기기에서 한 번만 입력)", (await st(pp)).authorized);
+    const afterReload = { authorized: (await st(pp)).authorized, cover: await pp.evaluate(() => !document.getElementById("cover").hidden), hash: await pp.evaluate(() => location.hash) };
+    check("새로고침하면 표지로 돌아감(주소의 #edit 제거) + 비밀번호는 다시 묻지 않음", afterReload.authorized && afterReload.cover && afterReload.hash === "", afterReload);
+    await pp.click("#enter-edit");
+    await sleep(300);
     page.__dialogHandler = null;
     await pp.click("#logout-btn");
     await pp.waitForFunction(() => document.getElementById("password-form") && document.getElementById("password-form").style.display !== "none", { timeout: 15000 });

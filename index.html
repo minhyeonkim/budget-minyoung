@@ -3256,6 +3256,13 @@ function applyHash(){
   setUiMode(target);
 }
 window.addEventListener("hashchange", applyHash);
+// 새로고침하면 항상 표지부터 (처음 여는 #view/#edit 바로가기 주소는 그대로 동작)
+(function(){
+  var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+  if(nav && nav.type === "reload" && location.hash){
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+})();
 document.getElementById("enter-edit").addEventListener("click", function(){ location.hash = "#edit"; });
 document.getElementById("enter-view").addEventListener("click", function(){ location.hash = "#view"; });
 document.getElementById("to-cover-btn").addEventListener("click", function(){
