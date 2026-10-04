@@ -7,7 +7,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword } from "firebase/auth";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const URL_ = "http://localhost:5173/index.html?emulator";
+const BASE = "http://localhost:5173/index.html?emulator";
+const URL_ = BASE + "#edit";
 const SHOTS = process.env.SHOTS;
 const RULES = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
 const READONLY_RULES = RULES.replace(
@@ -527,10 +528,83 @@ try {
   if (SHOTS) await mp.screenshot({ path: SHOTS + "/mobile_add_modal.png" });
   check("모바일(390px): 가로 넘침 없음, 전월/현재월 버튼 보임, 저장 버튼 하단 고정·탭 가능, 표 입력·모달 사용 가능", !mobile.overflow && mobile.quickBtns && mobile.saveBar && mobile.tableInputWorks && mobile.saveClickable && mobile.modal && mobile.saved && mobile.addModal, mobile);
 
+  /* ===== 표지 / 가계부 모드 / 보기 모드 ===== */
+  {
+    const vp = await newPage(1280, 900);
+    await vp.goto(BASE);
+    await vp.waitForFunction(() => window.__budgetTest, { timeout: 15000 });
+    const cover = await vp.evaluate(() => ({ shown: !document.getElementById("cover").hidden, title: document.querySelector(".cover-title").textContent, img: document.querySelector(".cover-dog").complete && document.querySelector(".cover-dog").naturalWidth > 0, btns: [...document.querySelectorAll(".cover-btn")].map((b) => b.firstChild.textContent.trim()) }));
+    check("표지: '별이네집 가계부' 제목·별이 사진·가계부 모드/보기 모드 버튼", cover.shown && cover.title === "별이네집 가계부" && cover.img && cover.btns.join() === "가계부 모드,보기 모드", cover);
+    await vp.evaluate(() => window.__budgetTest.signIn("member@example.com", "pass1234"));
+    await vp.waitForFunction(() => window.__budgetTest.state().ready, { timeout: 15000 });
+    await vp.click("#enter-view");
+    await sleep(300);
+    const visible = (sel) => vp.$$eval(sel, (els) => els.filter((e) => e.offsetParent !== null && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().width > 0).length);
+    const before = await val(vp, "#salary-amount");
+    await vp.click("#salary-amount").catch(() => {});
+    await vp.keyboard.type("999");
+    const viewPc = {
+      mode: await vp.evaluate(() => document.body.classList.contains("view-mode") && document.getElementById("cover").hidden),
+      checkboxes: await visible("#view-salary td.check-cell input"),
+      deletes: await visible("#view-salary td.row-actions button"),
+      addBtns: await visible("#view-salary .section-head .icon-btn"),
+      saveRow: await visible("#save-row"),
+      readOnly: await vp.$eval("#salary-amount", (e) => e.readOnly),
+      unchanged: (await val(vp, "#salary-amount")) === before,
+      dirty: (await st(vp)).dirty.length,
+      accountShown: await visible("#fixed-items-body .account-input")
+    };
+    check("PC 보기 모드: 체크박스·삭제·추가·저장 없음, 입력 불가, 계좌 등 다른 칸은 그대로 표시",
+      viewPc.mode && viewPc.checkboxes === 0 && viewPc.deletes === 0 && viewPc.addBtns === 0 && viewPc.saveRow === 0 && viewPc.readOnly && viewPc.unchanged && viewPc.dirty === 0, viewPc);
+    await clickText(vp, "자산 현황");
+    const assetsView = { forms: await visible("#view-assets .edit-only"), deletes: await visible("#view-assets td.row-actions button") };
+    await clickText(vp, "월급 계산");
+    await vp.click("#to-cover-btn");
+    await sleep(200);
+    const backCover = await vp.evaluate(() => !document.getElementById("cover").hidden);
+    await vp.click("#enter-edit");
+    await sleep(300);
+    const editAgain = { readOnly: await vp.$eval("#salary-amount", (e) => e.readOnly), checkboxes: await visible("#fixed-giup-body td.check-cell input"), saveRow: await visible("#save-row") };
+    check("표지 버튼 → 표지, 가계부 모드로 다시 들어가면 수정 가능 / 자산 현황 보기 모드는 추가·삭제 숨김",
+      backCover && !editAgain.readOnly && editAgain.checkboxes > 0 && editAgain.saveRow === 1 && assetsView.forms === 0 && assetsView.deletes === 0, { backCover, editAgain, assetsView });
+    // 미저장 상태에서 표지로 가려다 취소
+    await typeInto(vp, "#salary-amount", "4800000");
+    vp.__dialogHandler = (d) => d.dismiss();
+    await vp.click("#to-cover-btn");
+    await sleep(300);
+    check("미저장 변경이 있을 때 표지로 가기 → 확인창, 취소하면 그대로", (await vp.evaluate(() => document.getElementById("cover").hidden)) && (await val(vp, "#salary-amount")) === "4,800,000" && vp.__lastDialog && vp.__lastDialog.type === "confirm");
+    vp.__dialogHandler = (d) => d.accept();
+    await vp.click("#to-cover-btn");
+    await sleep(300);
+    check("확인하면 변경 버리고 표지로", !(await vp.evaluate(() => document.getElementById("cover").hidden)) && (await st(vp)).dirty.length === 0);
+    await vp.close();
+
+    const mv = await newPage(390, 844, true);
+    await mv.goto(BASE + "#view");
+    await mv.waitForFunction(() => window.__budgetTest, { timeout: 15000 });
+    await mv.evaluate(() => window.__budgetTest.signIn("member@example.com", "pass1234"));
+    await mv.waitForFunction(() => window.__budgetTest.state().ready, { timeout: 15000 });
+    await sleep(300);
+    const cellsPerRow = () => mv.$$eval("#view-salary tbody tr", (trs) => trs.filter((tr) => tr.offsetParent !== null).map((tr) => [...tr.cells].filter((td) => getComputedStyle(td).display !== "none").map((td) => td.classList.contains("name-cell") ? "항목" : td.classList.contains("amount-cell") ? "금액" : "기타").join("+")));
+    const mh = await cellsPerRow();
+    await mv.$eval('#person-tabs button[data-person="minyoung"]', (b) => b.click());
+    await sleep(300);
+    const my = await cellsPerRow();
+    const mobileView = {
+      direct: await mv.evaluate(() => document.getElementById("cover").hidden && document.body.classList.contains("view-mode")),
+      mh: [...new Set(mh)], my: [...new Set(my)],
+      sideways: await mv.evaluate(() => document.documentElement.scrollWidth > innerWidth)
+    };
+    if (SHOTS) await mv.screenshot({ path: SHOTS + "/view_mobile.png", fullPage: true });
+    check("모바일 보기 모드: 주소 #view로 바로 진입, 모든 줄이 '항목+금액'만 표시, 옆 스크롤 없음",
+      mobileView.direct && mobileView.mh.join() === "항목+금액" && mobileView.my.join() === "항목+금액" && !mobileView.sideways, mobileView);
+    await mv.close();
+  }
+
   /* ===== 공용 비밀번호 모드 ===== */
   {
     const pp = await newPage(390, 844, true);
-    await pp.goto(URL_ + "&auth=password");
+    await pp.goto(BASE + "&auth=password#edit");
     await pp.waitForFunction(() => document.getElementById("password-form").style.display !== "none", { timeout: 15000 });
     const locked = await pp.evaluate(() => ({
       app: getComputedStyle(document.getElementById("app-main")).display,
@@ -562,7 +636,7 @@ try {
   await env.cleanup();
   env = await initializeTestEnvironment({ projectId: "demo-budget", firestore: { rules: LEGACY_RULES, host: "127.0.0.1", port: 8080 } });
   const ap = await newPage();
-  await ap.goto(URL_ + "&auth=anonymous");
+  await ap.goto(BASE + "&auth=anonymous#edit");
   await ap.waitForFunction(() => window.__budgetTest && window.__budgetTest.state().ready, { timeout: 15000 });
   const anonView = { salary: await val(ap, "#salary-amount"), gate: await ap.$eval("#auth-gate", (e) => getComputedStyle(e).display) };
   await typeInto(ap, "#salary-amount", "4700000");

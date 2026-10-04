@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>민현민영</title>
+<title>별이네집 가계부</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@300;400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -448,17 +448,88 @@
     table:not(.compact) tfoot td{display:block; padding:0; border:0;}
     table:not(.compact) tfoot td:empty{display:none;}
     table:not(.compact) tr.drag-over td{border-top:0;}
+
+    /* 보기 모드(모바일): 항목과 금액만 한 줄씩 깔끔한 목록으로 */
+    body.view-mode #view-salary table:not(.compact) tbody tr{
+      flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:10px;
+      padding:9px 2px; margin:0; background:transparent; border:0; border-bottom:1px solid var(--border-soft); border-radius:0;
+    }
+    body.view-mode #view-salary table:not(.compact) tbody td{display:none;}
+    body.view-mode #view-salary table:not(.compact) tbody td.name-cell{display:block; order:0; flex:1 1 auto;}
+    body.view-mode #view-salary table:not(.compact) tbody td.amount-cell{display:block; order:1; flex:0 0 auto;}
+    body.view-mode #view-salary td.amount-cell::before{display:none;}
+    body.view-mode #view-salary td.name-cell input{padding:0; font-size:15px; font-weight:600;}
+    body.view-mode #view-salary td.amount-cell input{padding:0; text-align:right; width:120px !important; font-size:15px; font-variant-numeric:tabular-nums;}
+    body.view-mode #view-salary table:not(.compact) tfoot tr{padding:10px 2px;}
   }
+
+  /* ---- 표지 ---- */
+  body.cover-open{overflow:hidden;}
+  .cover{
+    position:fixed; inset:0; z-index:2000;
+    display:flex; align-items:center; justify-content:center;
+    padding:24px 16px; overflow-y:auto;
+    background:radial-gradient(120% 80% at 50% 30%, #2a2016 0%, #14110d 45%, var(--bg) 100%);
+  }
+  .cover[hidden]{display:none;}
+  .cover-inner{width:100%; max-width:560px; text-align:center;}
+  .cover-dog{width:min(100%, 460px); height:auto; filter:drop-shadow(0 18px 30px rgba(0,0,0,.55));}
+  .cover-title{font-family:'Gaegu',sans-serif; font-weight:700; font-size:clamp(42px, 10vw, 64px); color:#ffd59e; margin:6px 0 2px; line-height:1.1;}
+  .cover-sub{color:var(--text-dim); margin:0 0 26px; font-size:14px;}
+  .cover-actions{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  @media (max-width:420px){ .cover-actions{grid-template-columns:1fr;} }
+  .cover-btn{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:18px 14px; border-radius:16px; cursor:pointer;
+    border:1px solid var(--border); background:var(--surface); color:var(--text);
+    font-family:inherit; font-size:18px; font-weight:800;
+  }
+  .cover-btn span{font-size:12px; font-weight:600; color:var(--text-dim);}
+  .cover-btn:hover{border-color:var(--accent);}
+  .cover-btn-main{background:var(--accent); border-color:var(--accent); color:#052030;}
+  .cover-btn-main span{color:#0d3a52;}
+  .mode-badge{font-size:12px; font-weight:800; padding:3px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent);}
+  body.view-mode .mode-badge{background:rgba(120,224,189,.14); color:var(--good);}
+
+  /* ---- 보기 모드: 수정 불가, 체크박스·삭제·추가·저장 숨김 ---- */
+  body.view-mode td.drag-cell, body.view-mode td.check-cell, body.view-mode td.auto-cell, body.view-mode th.auto-col{width:0; padding:0 !important; font-size:0;}
+  body.view-mode td.drag-cell > *, body.view-mode td.check-cell > *, body.view-mode td.auto-cell > *{display:none;}
+  body.view-mode td.row-actions{padding:0;}
+  body.view-mode td.row-actions > *{display:none;}
+  body.view-mode tr.disabled-row{display:none;}
+  body.view-mode .edit-only, body.view-mode #save-row, body.view-mode .section-head .icon-btn,
+  body.view-mode #toggle-card-edit-btn, body.view-mode #toggle-my-card-edit-btn,
+  body.view-mode #cards-edit-panel, body.view-mode #my-cards-edit-panel,
+  body.view-mode .hint, body.view-mode #conflict-banner, body.view-mode .field-error{display:none !important;}
+  body.view-mode #app-main input:not([type="checkbox"]), body.view-mode #app-main select{
+    border-color:transparent; background:transparent; cursor:default; -webkit-user-select:text; user-select:text;
+  }
+  body.view-mode #app-main input:focus{outline:none;}
 
   ::-webkit-scrollbar{width:8px; height:8px;}
   ::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
 </style>
 </head>
-<body>
+<body class="cover-open">
+<!-- 표지: 가계부 모드 / 보기 모드 선택 -->
+<section class="cover" id="cover">
+  <div class="cover-inner">
+    <img src="assets/byeol.png" alt="별이" class="cover-dog" width="900" height="443">
+    <h1 class="cover-title">별이네집 가계부</h1>
+    <p class="cover-sub">민현 · 민영 · 별이</p>
+    <div class="cover-actions">
+      <button class="cover-btn cover-btn-main" id="enter-edit">가계부 모드<span>입력 · 수정 · 저장</span></button>
+      <button class="cover-btn" id="enter-view">보기 모드<span>읽기 전용 · 한눈에 보기</span></button>
+    </div>
+  </div>
+</section>
+
 <div class="app">
   <header class="top">
-    <h1>민현민영</h1>
+    <h1>별이네집 가계부</h1>
     <div class="top-right">
+      <span id="mode-badge" class="mode-badge">가계부 모드</span>
+      <button class="icon-btn" id="to-cover-btn">표지</button>
       <span id="status" class="busy">로그인 확인 중…</span>
       <span id="user-box" style="display:none;"><span id="user-email"></span><button class="icon-btn" id="logout-btn">로그아웃</button></span>
     </div>
@@ -690,7 +761,7 @@
               </table></div>
             </div>
           </div>
-          <div style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급계산" 탭의 기업/농협 고정금과 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
+          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급계산" 탭의 기업/농협 고정금과 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
 
           <div class="two-col-grid" style="margin-top:24px;">
             <div>
@@ -715,7 +786,7 @@
               </div>
               <div class="table-scroll"><table>
                 <thead>
-                  <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th>자동</th><th></th></tr>
+                  <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th class="auto-col">자동</th><th></th></tr>
                 </thead>
                 <tbody id="card-fixed-hyundai-body"></tbody>
                 <tfoot>
@@ -763,7 +834,7 @@
           <div id="hyundai-add-content" style="display:none;">
             <div class="table-scroll"><table>
               <thead>
-                <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th>자동</th><th></th></tr>
+                <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th class="auto-col">자동</th><th></th></tr>
               </thead>
               <tbody id="modal-hyundai-body"></tbody>
               <tfoot>
@@ -862,7 +933,7 @@
           </thead>
           <tbody id="fixed-items-body"></tbody>
           <tfoot>
-            <tr class="total-row"><td colspan="3">고정비 합계</td><td class="num" id="fixed-total">0</td><td colspan="2"></td><td></td></tr>
+            <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="fixed-total">0</td><td colspan="2"></td><td></td></tr>
           </tfoot>
         </table></div>
 
@@ -873,7 +944,7 @@
             </thead>
             <tbody id="modal-minyoung-body"></tbody>
             <tfoot>
-              <tr class="total-row"><td colspan="3">고정비 합계</td><td class="num" id="modal-minyoung-total">0</td><td colspan="2"></td><td></td></tr>
+              <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="modal-minyoung-total">0</td><td colspan="2"></td><td></td></tr>
             </tfoot>
           </table></div>
           <div class="field-row" style="margin-top:14px;">
@@ -913,7 +984,7 @@
             <button class="icon-btn" id="add-my-cash-btn-open">+ 추가</button>
           </div>
           <div class="two-col-grid" id="my-cash-groups"></div>
-          <div style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
+          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
 
           <div class="two-col-grid" style="margin-top:24px;">
             <div>
@@ -1022,7 +1093,7 @@
             <div class="value good" id="joint-stat-total">0원</div>
           </div>
         </div>
-        <p style="font-size:12px; color:var(--text-faint); margin-top:14px;">민현은 "월급분석" 탭, 민영은 "월급분배" 탭의 남는 생활비를 그대로 더한 값입니다. 상단 ◀ ▶ 로 달을 바꾸면 그 달 기준으로 다시 계산됩니다.</p>
+        <p class="hint" style="font-size:12px; color:var(--text-faint); margin-top:14px;">민현은 "월급분석" 탭, 민영은 "월급분배" 탭의 남는 생활비를 그대로 더한 값입니다. 상단 ◀ ▶ 로 달을 바꾸면 그 달 기준으로 다시 계산됩니다.</p>
 
         <div class="section-head" style="margin-top:20px;">
           <h2>생활비 사용 계획</h2>
@@ -1122,7 +1193,7 @@
           <tr class="total-row"><td colspan="2">합계</td><td class="num" id="loan-limit-total">0</td><td class="num" id="loan-used-total">0</td><td class="num" id="loan-available-total">0</td><td></td></tr>
         </tfoot>
       </table></div>
-      <div class="field-row" style="margin-top:10px;">
+      <div class="field-row edit-only" style="margin-top:10px;">
         <div class="field"><label>담당</label>
           <select id="loan-owner"><option value="민현">민현</option><option value="민영">민영</option><option value="공동">공동</option></select>
         </div>
@@ -1148,7 +1219,7 @@
           <tr class="total-row"><td colspan="2">합계</td><td class="num" id="saving-total">0</td><td></td></tr>
         </tfoot>
       </table></div>
-      <div class="field-row" style="margin-top:10px;">
+      <div class="field-row edit-only" style="margin-top:10px;">
         <div class="field"><label>담당</label>
           <select id="saving-owner"><option value="민현">민현</option><option value="민영">민영</option><option value="공동">공동</option></select>
         </div>
@@ -1352,6 +1423,7 @@ var MY_CARD_FIXED = [
 ];
 
 var currentPerson = "minhyun";
+var uiMode = null; // null = 표지, "edit" = 가계부 모드, "view" = 보기 모드(수정 불가)
 var currentMonth = todayYearMonth(); // "YYYY-MM"
 var authorized = false;
 
@@ -1453,7 +1525,7 @@ function isLoaded(p){
   return KINDS_FOR[p].every(function(k){ return server[k][p] != null && work[k][p] != null; });
 }
 function allReady(){ return authorized && PERSONS.every(isLoaded); }
-function canEdit(p){ return authorized && !saving && allReady(); }
+function canEdit(p){ return uiMode === "edit" && authorized && !saving && allReady(); }
 
 function personPendingIds(p){
   return Object.keys(pendingAmountChanges).filter(function(id){ return pendingAmountChanges[id].person === p; });
@@ -1806,6 +1878,7 @@ function renderSalary(){
   renderJoint();
   labelTableCells(document);
   refreshComputed();
+  applyReadOnly();
 }
 
 // 공동자산의 민현 남는 생활비 = 월급분석 탭의 남는 생활비 (고정금현금+고정금카드+할부 반영)
@@ -1896,7 +1969,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var bindBase = "item|" + p + "|" + listKey + "|" + item.id + "|";
     var tr = document.createElement("tr");
     tr.dataset.row = "item|" + p + "|" + listKey + "|" + item.id;
-    var amountCellHtml = '<td' + (showAccount || (options && options.alignLeft) ? "" : ' class="num"') + '><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
+    var amountCellHtml = '<td class="amount-cell' + (showAccount || (options && options.alignLeft) ? "" : " num") + '"><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
     function extraCells(list){
       return (list || []).map(function(x){
         return '<td><input type="text" class="name-input extra-input" data-extra="' + x.field + '" placeholder="' + escapeHtml(x.placeholder) + '"></td>';
@@ -2027,7 +2100,7 @@ function renderInstallments(bodyId, totalId){
       '<td class="drag-cell"><span class="drag-handle">⠿</span></td>' +
       '<td class="check-cell"><input type="checkbox"></td>' +
       '<td><input type="text" class="name-input"></td>' +
-      '<td class="num"><input type="text" inputmode="numeric" class="money-input inline-amount"></td>' +
+      '<td class="num amount-cell"><input type="text" inputmode="numeric" class="money-input inline-amount"></td>' +
       '<td class="num"><span style="display:inline-flex; gap:4px; align-items:center;">' +
         '<input type="text" inputmode="numeric" class="day-input inst-current" maxlength="2">' +
         '<span style="color:var(--text-faint);">/</span>' +
@@ -2947,6 +3020,7 @@ document.querySelectorAll("input.asset-amount").forEach(function(el){
 });
 
 function confirmAndDeleteAsset(item, kindLabel){
+  if(uiMode !== "edit") return;
   if(!confirm("'" + item.name + "' " + kindLabel + " 항목을 삭제할까요?\n저장 버튼 없이 바로 서버에서 삭제되고 되돌릴 수 없어요.")) return;
   deleteDoc(doc(db, ASSET_COL, item.id)).then(function(){
     stickyError = null;
@@ -3003,6 +3077,7 @@ function renderAssets(){
   document.getElementById("saving-total").textContent = fmtPlain(savingTotal);
   document.getElementById("stat-saving-total").textContent = fmt(savingTotal);
   labelTableCells(document.getElementById("view-assets"));
+  applyReadOnly();
 }
 
 function subscribeAssets(){
@@ -3020,6 +3095,7 @@ function subscribeAssets(){
 }
 
 document.getElementById("add-loan-btn").addEventListener("click", function(){
+  if(uiMode !== "edit") return;
   var btn = this;
   var owner = document.getElementById("loan-owner").value;
   var name = document.getElementById("loan-name").value.trim();
@@ -3046,6 +3122,7 @@ document.getElementById("add-loan-btn").addEventListener("click", function(){
 });
 
 document.getElementById("add-saving-btn").addEventListener("click", function(){
+  if(uiMode !== "edit") return;
   var btn = this;
   var owner = document.getElementById("saving-owner").value;
   var name = document.getElementById("saving-name").value.trim();
@@ -3137,6 +3214,56 @@ window.addEventListener("beforeunload", function(e){
     e.returnValue = "";
   }
 });
+
+/* ---------- 표지 / 가계부 모드 / 보기 모드 ----------
+   주소 끝 #edit(가계부 모드), #view(보기 모드)로 바로 들어갈 수도 있음. 둘 다 없으면 표지. */
+function applyReadOnly(){
+  var view = uiMode !== "edit";
+  if(view){
+    document.querySelectorAll('#app-main input:not([type="checkbox"])').forEach(function(el){ el.readOnly = true; });
+    document.querySelectorAll("#app-main select").forEach(function(el){ el.disabled = true; });
+  } else {
+    // 다시 그려지지 않는 고정 입력칸(월급, 추가 입력폼 등)만 원래대로. 표 안 칸은 다시 그릴 때 새로 만들어짐
+    document.querySelectorAll("#app-main input[id], #app-main select[id]").forEach(function(el){ el.readOnly = false; el.disabled = false; });
+  }
+}
+function setUiMode(mode){
+  uiMode = mode;
+  closeEditModal();
+  document.body.classList.toggle("view-mode", mode === "view");
+  document.body.classList.toggle("cover-open", !mode);
+  document.getElementById("cover").hidden = !!mode;
+  document.getElementById("mode-badge").textContent = mode === "view" ? "보기 모드" : "가계부 모드";
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  if(authorized){
+    requestRender();
+    renderAssets();
+  }
+  applyReadOnly();
+  updateChrome();
+}
+function applyHash(){
+  var h = location.hash;
+  var target = h === "#view" ? "view" : (h === "#edit" ? "edit" : null);
+  if(target === uiMode) return;
+  if(uiMode === "edit" && dirtyPersons().length){
+    if(!confirm("저장하지 않은 변경이 있어요. 버리고 나갈까요?")){
+      location.hash = "#edit";
+      return;
+    }
+    dirtyPersons().forEach(discardPerson);
+  }
+  setUiMode(target);
+}
+window.addEventListener("hashchange", applyHash);
+document.getElementById("enter-edit").addEventListener("click", function(){ location.hash = "#edit"; });
+document.getElementById("enter-view").addEventListener("click", function(){ location.hash = "#view"; });
+document.getElementById("to-cover-btn").addEventListener("click", function(){
+  history.pushState(null, "", location.pathname + location.search);
+  applyHash();
+  if(uiMode) history.replaceState(null, "", location.pathname + location.search + "#" + uiMode); // 나가기 취소 시 주소 복원
+});
+applyHash();
 
 /* ---------- 로그인 & 권한 확인 ----------
    Google 로그인 → budget_members/{uid} 문서가 있는 계정만 데이터 구독 시작.
