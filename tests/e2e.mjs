@@ -335,38 +335,46 @@ try {
     { auto1, auto2, auto3, autoOff, fxH });
   await clickText(page, "월급분배");
 
-  /* ===== 민영 월급분배: 고정금(현금) 은행별 + 고정금(카드) 우리/현대 (자동·할부) ===== */
+  /* ===== 민영: 월급분배는 예전 표 그대로, 월급분석에 은행별 고정금(현금) + 우리/현대 카드(자동·할부) ===== */
   await page.click('#person-tabs button[data-person="minyoung"]');
   await page.$eval('#minyoung-section-tabs button[data-section="calc"]', (b) => b.click());
-  await typeInto(page, '#my-cards-quick-entry [data-bind="card|minyoung||mc2|amount"]', "1000000");
-  const myAuto1 = await page.evaluate(() => ({
-    groups: [...document.querySelectorAll("#my-calc-cash-groups h2")].map((h) => h.textContent),
-    sections: [...document.querySelectorAll("#panel-minyoung #minyoung-calc-section .card-section h2")].map((h) => h.textContent),
-    w2: document.querySelector('#my-calc-card-woori-body tr[data-row$="|w2"] input.money-input').value,
-    w2Analysis: document.querySelector('#my-card-fixed-woori-body tr[data-row$="|w2"] input.money-input').value,
-    autoChecks: [...document.querySelectorAll("#my-calc-card-woori-body input.auto-check")].length
+  const calcLayout = await page.evaluate(() => ({
+    table: document.querySelectorAll("#fixed-items-body tr").length,
+    heading: [...document.querySelectorAll("#minyoung-calc-section h2")].map((h) => h.textContent).join("|"),
+    cardSections: document.querySelectorAll("#minyoung-calc-section .card-section").length
   }));
-  await page.evaluate(() => document.querySelector('#my-calc-card-woori [data-add-inst]').click());
+  await typeInto(page, '#my-cards-quick-entry [data-bind="card|minyoung||mc2|amount"]', "1000000");
+  await page.$eval('#minyoung-section-tabs button[data-section="analysis"]', (b) => b.click());
+  const myAuto1 = await page.evaluate(() => ({
+    groups: [...document.querySelectorAll("#my-cash-groups h2")].map((h) => h.textContent),
+    groupAccount: !!document.querySelector("#my-cash-groups .account-input"),
+    sections: [...document.querySelectorAll("#minyoung-analysis-section .card-section h2")].map((h) => h.textContent),
+    w2: document.querySelector('#my-card-fixed-woori-body tr[data-row$="|w2"] input.money-input').value,
+    autoChecks: [...document.querySelectorAll("#my-card-fixed-woori-body input.auto-check")].length
+  }));
+  await page.evaluate(() => document.querySelector('#my-card-woori [data-add-inst]').click());
   await typeInto(page, "#inst-new-name", "피부렌탈");
   await typeInto(page, "#inst-new-amount", "130000");
   await typeInto(page, "#inst-new-current", "1");
   await typeInto(page, "#inst-new-total", "12");
   await page.click("#inst-new-add");
   const myAuto2 = await page.evaluate(() => ({
-    w2: document.querySelector('#my-calc-card-woori-body tr[data-row$="|w2"] input.money-input').value,
-    instRows: document.querySelectorAll("#my-calc-card-woori-body-inst tr").length,
-    sum: document.querySelector("#my-calc-card-woori [data-sum-card]").textContent,
+    w2: document.querySelector('#my-card-fixed-woori-body tr[data-row$="|w2"] input.money-input').value,
+    instRows: document.querySelectorAll("#my-card-fixed-woori-body-inst tr").length,
+    sum: document.querySelector("#my-card-woori [data-sum-card]").textContent,
     analysisCard: document.getElementById("myaf-stat-card").textContent
   }));
   await page.click("#save-salary-btn");
   await waitSaved(page);
   const myInst = await read("minyoung_installments");
-  check("민영 월급분배: 은행별 고정금(현금) + 우리카드(코수술 + 자동 기타) + 할부, 카드 합계 = 사용금액, 저장",
-    myAuto1.groups.join() === "고정금(현금) — 하나" && myAuto1.sections.join() === "고정금(카드) — 우리카드,고정금(카드) — 현대카드" &&
-    myAuto1.w2 === "450,000" && myAuto1.w2Analysis === "450,000" && myAuto1.autoChecks === 1 &&
+  check("민영: 월급분배는 예전 단일 표 그대로 / 월급분석에 은행별 고정금(현금)+우리카드(코수술+자동 기타)+할부, 카드 합계=사용금액, 저장",
+    calcLayout.table === 1 && calcLayout.heading.includes("고정비 / 차감 항목") && calcLayout.cardSections === 0 &&
+    myAuto1.groups.join() === "고정금(현금) — 하나" && myAuto1.groupAccount && myAuto1.sections.join() === "고정금(카드) — 우리카드,고정금(카드) — 현대카드" &&
+    myAuto1.w2 === "450,000" && myAuto1.autoChecks === 1 &&
     myAuto2.w2 === "320,000" && myAuto2.instRows === 1 && myAuto2.sum === "1,000,000" && myAuto2.analysisCard === "1,000,000원" &&
     myInst && myInst.installments[0].card === "cardFixedWoori" && myInst.installments[0].monthlyAmount === 130000 && (await st(page)).dirty.length === 0,
-    { myAuto1, myAuto2, myInst });
+    { calcLayout, myAuto1, myAuto2, myInst });
+  await page.$eval('#minyoung-section-tabs button[data-section="calc"]', (b) => b.click());
   await page.click('#person-tabs button[data-person="minhyun"]');
 
   /* ===== 같은 항목의 여러 화면 동기화 ===== */
@@ -614,7 +622,7 @@ try {
       readOnly: await vp.$eval("#salary-amount", (e) => e.readOnly),
       unchanged: (await val(vp, "#salary-amount")) === before,
       dirty: (await st(vp)).dirty.length,
-      accountShown: await visible("#my-calc-cash-groups .account-input")
+      accountShown: await visible("#fixed-items-body .account-input")
     };
     check("PC 보기 모드: 체크박스·삭제·추가·저장 없음, 입력 불가, 계좌 등 다른 칸은 그대로 표시",
       viewPc.mode && viewPc.checkboxes === 0 && viewPc.deletes === 0 && viewPc.addBtns === 0 && viewPc.saveRow === 0 && viewPc.readOnly && viewPc.unchanged && viewPc.dirty === 0, viewPc);

@@ -866,15 +866,18 @@
         </div>
 
         <div class="section-head" style="margin-top:20px;">
-          <h2>고정금(현금)</h2>
+          <h2>고정비 / 차감 항목</h2>
           <button class="icon-btn" id="add-item-btn-open">+ 추가</button>
         </div>
-        <div class="two-col-grid" id="my-calc-cash-groups"></div>
-
-        <div class="two-col-grid" style="margin-top:24px;">
-          <div class="card-section" id="my-calc-card-woori"></div>
-          <div class="card-section" id="my-calc-card-hyundai"></div>
-        </div>
+        <div class="table-scroll"><table>
+          <thead>
+            <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr>
+          </thead>
+          <tbody id="fixed-items-body"></tbody>
+          <tfoot>
+            <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="fixed-total">0</td><td colspan="2"></td><td></td></tr>
+          </tfoot>
+        </table></div>
 
         <div id="minyoung-add-content" style="display:none;">
           <div class="table-scroll"><table>
@@ -883,7 +886,7 @@
             </thead>
             <tbody id="modal-minyoung-body"></tbody>
             <tfoot>
-              <tr class="total-row"><td colspan="3">고정금(현금) 합계</td><td class="sum-left" id="modal-minyoung-total">0</td><td colspan="2"></td><td></td></tr>
+              <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="modal-minyoung-total">0</td><td colspan="2"></td><td></td></tr>
             </tfoot>
           </table></div>
           <div class="field-row" style="margin-top:14px;">
@@ -903,7 +906,7 @@
             <div class="value" id="stat-salary">0원</div>
           </div>
           <div class="stat">
-            <div class="label">고정금(현금) 합계</div>
+            <div class="label">고정비 합계</div>
             <div class="value bad" id="stat-fixed">0원</div>
           </div>
           <div class="stat">
@@ -923,7 +926,7 @@
             <button class="icon-btn" id="add-my-cash-btn-open">+ 추가</button>
           </div>
           <div class="two-col-grid" id="my-cash-groups"></div>
-          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영됩니다.</div>
+          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영되고, 은행을 바꾸면 해당 은행 표로 옮겨져요.</div>
 
           <div class="two-col-grid" style="margin-top:24px;">
             <div class="card-section" id="my-card-woori"></div>
@@ -2027,8 +2030,6 @@ function renderMinhyun(){
 var CARD_SECTIONS = [
   { id: "af-card-kb", p: "minhyun", listKey: "cardFixedKb", label: "KB카드", bodyId: "card-fixed-kb-body", totalId: "card-fixed-kb-total", addContent: "kb-add-content", showDay: true },
   { id: "af-card-hyundai", p: "minhyun", listKey: "cardFixedHyundai", label: "현대카드", bodyId: "card-fixed-hyundai-body", totalId: "card-fixed-hyundai-total", addContent: "hyundai-add-content", showDay: true },
-  { id: "my-calc-card-woori", p: "minyoung", listKey: "cardFixedWoori", label: "우리카드", bodyId: "my-calc-card-woori-body", totalId: "my-calc-card-woori-total", addContent: "my-woori-add-content" },
-  { id: "my-calc-card-hyundai", p: "minyoung", listKey: "cardFixedHyundai", label: "현대카드", bodyId: "my-calc-card-hyundai-body", totalId: "my-calc-card-hyundai-total", addContent: "my-hyundai-add-content" },
   { id: "my-card-woori", p: "minyoung", listKey: "cardFixedWoori", label: "우리카드", bodyId: "my-card-fixed-woori-body", totalId: "my-card-fixed-woori-total", addContent: "my-woori-add-content" },
   { id: "my-card-hyundai", p: "minyoung", listKey: "cardFixedHyundai", label: "현대카드", bodyId: "my-card-fixed-hyundai-body", totalId: "my-card-fixed-hyundai-total", addContent: "my-hyundai-add-content" }
 ];
@@ -2245,8 +2246,8 @@ function renderMinyoung(){
   renderCardsEditBody("minyoung", "my-cards-edit-body", data.cards || [], false);
 
   var list = computeEffectiveList("minyoung", "fixedItems");
+  renderEditableList("fixed-items-body", "fixed-total", list, "minyoung", "fixedItems", { showAccount: true });
   renderEditableList("modal-minyoung-body", "modal-minyoung-total", list, "minyoung", "fixedItems", { showAccount: true });
-  renderMinyoungCalcGroups(list);
   renderMinyoungCashGroups(list);
 
   MY_CARD_FIXED.forEach(function(c){
@@ -2255,9 +2256,9 @@ function renderMinyoung(){
   CARD_SECTIONS.filter(function(c){ return c.p === "minyoung"; }).forEach(renderCardSection);
 }
 
-/* 민영 월급분배: 고정금(현금)을 은행별 표로 (계좌번호·은행 칸 포함, 은행을 바꾸면 해당 은행 표로 이동) */
-function renderMinyoungCalcGroups(list){
-  var container = document.getElementById("my-calc-cash-groups");
+/* 민영 월급분석: 고정금(현금)을 은행별 표로 (계좌번호·은행 칸 포함, 은행을 바꾸면 해당 은행 표로 이동) */
+function renderMinyoungCashGroups(list){
+  var container = document.getElementById("my-cash-groups");
   container.innerHTML = "";
   groupByBank(list).forEach(function(group, idx){
     var wrap = document.createElement("div");
@@ -2266,11 +2267,11 @@ function renderMinyoungCalcGroups(list){
         '<button class="icon-btn" data-open-add="minyoung-add-content" data-title="고정금(현금) 항목 추가" data-bank="' + escapeHtml(group.bank === "은행 미입력" ? "" : group.bank) + '">+ 추가</button></div>' +
       '<div class="table-scroll"><table>' +
         '<thead><tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr></thead>' +
-        '<tbody id="my-calc-cash-body-' + idx + '"></tbody>' +
-        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="sum-left" id="my-calc-cash-total-' + idx + '">0</td><td colspan="3"></td></tr></tfoot>' +
+        '<tbody id="my-cash-body-' + idx + '"></tbody>' +
+        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="sum-left" id="my-cash-total-' + idx + '">0</td><td colspan="3"></td></tr></tfoot>' +
       '</table></div>';
     container.appendChild(wrap);
-    renderEditableList("my-calc-cash-body-" + idx, "my-calc-cash-total-" + idx, group.items, "minyoung", "fixedItems", { showAccount: true, bank: group.bank });
+    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, "minyoung", "fixedItems", { showAccount: true, bank: group.bank });
   });
 }
 
@@ -2290,22 +2291,6 @@ function groupByBank(items){
   return groups;
 }
 
-function renderMinyoungCashGroups(list){
-  var container = document.getElementById("my-cash-groups");
-  container.innerHTML = "";
-  groupByBank(list).forEach(function(group, idx){
-    var wrap = document.createElement("div");
-    wrap.innerHTML =
-      '<div class="section-head"><h2>고정금(현금) — ' + escapeHtml(group.bank) + '</h2></div>' +
-      '<div class="table-scroll"><table>' +
-        '<thead><tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr></thead>' +
-        '<tbody id="my-cash-body-' + idx + '"></tbody>' +
-        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="num" id="my-cash-total-' + idx + '">0</td><td></td></tr></tfoot>' +
-      '</table></div>';
-    container.appendChild(wrap);
-    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, "minyoung", "fixedItems", { bank: group.bank });
-  });
-}
 
 function computeMinyoungAnalysis(){
   var data = getMonthWork("minyoung");
@@ -2439,7 +2424,7 @@ document.getElementById("add-nh-btn-analysis").addEventListener("click", functio
   openEditModal("농협은행 고정금 추가", "nh-add-content");
 });
 document.getElementById("add-item-btn-open").addEventListener("click", function(){
-  openEditModal("고정금(현금) 항목 추가", "minyoung-add-content");
+  openEditModal("고정비 / 차감 항목 추가", "minyoung-add-content");
 });
 // 카드 섹션·은행별 표의 "+ 추가" / "+ 할부" (화면을 다시 그려도 동작하도록 위임 처리)
 document.addEventListener("click", function(e){
