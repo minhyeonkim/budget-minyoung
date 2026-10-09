@@ -347,6 +347,9 @@
   td.auto-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td input.money-input.auto-amount{color:var(--accent); border-style:dashed; cursor:default;}
   .sec-actions{display:inline-flex; gap:6px;}
+  /* 은행별 표는 한 줄에 하나씩 (계좌번호가 잘리지 않도록 넓게) */
+  .bank-groups{display:flex; flex-direction:column; gap:18px;}
+  td input.account-input{min-width:270px;}
   .inst-sub{margin-top:10px;}
   .inst-sub .inst-title{font-size:13px; font-weight:700; color:var(--text-dim); margin:2px 0 4px;}
   .card-sum{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:8px; padding:10px 12px; border-radius:10px; background:var(--accent-soft); color:var(--accent); font-weight:800; font-size:14px;}
@@ -448,6 +451,8 @@
     table:not(.compact) tbody td.name-cell{order:0; flex:1 1 50%;}
     table:not(.compact) tbody td.row-actions{order:3; flex:0 0 auto; margin-left:auto; align-self:center;}
     table:not(.compact) tbody tr:has(td.name-cell) td.row-actions{order:1;}
+    /* 계좌번호는 한 줄 전체를 써서 끝까지 보이게 */
+    table:not(.compact) tbody td[data-label="계좌번호"]{flex-basis:100%;}
     table:not(.compact) tbody td[data-label]::before{content:attr(data-label); display:block; font-size:11px; color:var(--text-faint); margin-bottom:3px;}
     table:not(.compact) tbody td input:not(.day-input):not([type="checkbox"]), table:not(.compact) tbody td select{width:100%; max-width:none !important; min-width:0;}
     table:not(.compact) tfoot tr{display:flex; justify-content:space-between; gap:10px; padding:8px 10px;}
@@ -921,11 +926,7 @@
         </div>
 
         <div id="minyoung-analysis-section" style="display:none;">
-          <div class="section-head">
-            <h2>고정금(현금) — 은행별</h2>
-            <button class="icon-btn" id="add-my-cash-btn-open">+ 추가</button>
-          </div>
-          <div class="two-col-grid" id="my-cash-groups"></div>
+          <div class="bank-groups" id="my-cash-groups"></div>
           <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영되고, 은행을 바꾸면 해당 은행 표로 옮겨져요.</div>
 
           <div class="two-col-grid" style="margin-top:24px;">
@@ -2467,9 +2468,6 @@ function openInstModal(key, label){
     requestRender();
   });
 }
-document.getElementById("add-my-cash-btn-open").addEventListener("click", function(){
-  openEditModal("고정금(현금) 항목 추가", "minyoung-add-content");
-});
 document.getElementById("add-living-btn-open").addEventListener("click", function(){
   openEditModal("생활비 사용 계획 추가", "joint-living-add-content");
 });
