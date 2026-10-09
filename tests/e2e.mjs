@@ -347,7 +347,8 @@ try {
   await page.$eval('#minyoung-section-tabs button[data-section="analysis"]', (b) => b.click());
   const myAuto1 = await page.evaluate(() => ({
     groups: [...document.querySelectorAll("#my-cash-groups h2")].map((h) => h.textContent),
-    groupAccount: !!document.querySelector("#my-cash-groups .account-input"),
+    groupAccount: !!document.querySelector('#my-cash-groups [data-extra="account"]') && !document.querySelector("#my-cash-groups .bank-input"),
+    perRow: (() => { const g = [...document.querySelectorAll("#my-cash-groups > div")]; return g.length / new Set(g.map((x) => Math.round(x.getBoundingClientRect().top))).size; })(),
     sections: [...document.querySelectorAll("#minyoung-analysis-section .card-section h2")].map((h) => h.textContent),
     w2: document.querySelector('#my-card-fixed-woori-body tr[data-row$="|w2"] input.money-input').value,
     autoChecks: [...document.querySelectorAll("#my-card-fixed-woori-body input.auto-check")].length

@@ -226,6 +226,7 @@
     font-family:inherit;
     font-size:12px;
   }
+  button.icon-btn{white-space:nowrap;}
   button.icon-btn:hover{background:var(--surface-hover); color:var(--text);}
   button.icon-btn.danger:hover{color:var(--bad); border-color:var(--bad);}
 
@@ -347,9 +348,21 @@
   td.auto-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td input.money-input.auto-amount{color:var(--accent); border-style:dashed; cursor:default;}
   .sec-actions{display:inline-flex; gap:6px;}
-  /* 은행별 표는 한 줄에 하나씩 (계좌번호가 잘리지 않도록 넓게) */
-  .bank-groups{display:flex; flex-direction:column; gap:18px;}
+  /* 월급분배 표의 계좌번호 칸은 넓게 */
   td input.account-input{min-width:270px;}
+  /* 민영 월급분석 은행별 표: 두 개씩 나란히, 은행 칸은 빼고(제목에 은행명) 계좌번호를 넓게 */
+  .bank-groups{row-gap:18px;}
+  .bank-groups td input.name-input:not(.extra-input){min-width:80px;}
+  .bank-groups td input.money-input.inline-amount{max-width:110px;}
+  .bank-groups td .extra-input[data-extra="account"]{min-width:150px; font-weight:700;}
+  td textarea.extra-input{
+    display:block; width:100%; resize:none; overflow:hidden; line-height:1.4;
+    background:#0f0f13; border:1px solid var(--border); border-radius:10px; color:var(--text);
+    padding:5px 8px; font-family:inherit; font-size:13px; font-weight:700; min-height:30px;
+    word-break:break-all;
+  }
+  td textarea.extra-input:focus{outline:1px solid var(--accent);}
+  @media (max-width:640px){ td textarea.extra-input{font-size:16px;} }
   .inst-sub{margin-top:10px;}
   .inst-sub .inst-title{font-size:13px; font-weight:700; color:var(--text-dim); margin:2px 0 4px;}
   .card-sum{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:8px; padding:10px 12px; border-radius:10px; background:var(--accent-soft); color:var(--accent); font-weight:800; font-size:14px;}
@@ -512,7 +525,7 @@
   body.view-mode #toggle-card-edit-btn, body.view-mode #toggle-my-card-edit-btn,
   body.view-mode #cards-edit-panel, body.view-mode #my-cards-edit-panel,
   body.view-mode .hint, body.view-mode #conflict-banner, body.view-mode .field-error{display:none !important;}
-  body.view-mode #app-main input:not([type="checkbox"]), body.view-mode #app-main select{
+  body.view-mode #app-main input:not([type="checkbox"]), body.view-mode #app-main select, body.view-mode #app-main textarea{
     border-color:transparent; background:transparent; cursor:default; -webkit-user-select:text; user-select:text;
   }
   body.view-mode #app-main input:focus{outline:none;}
@@ -926,8 +939,8 @@
         </div>
 
         <div id="minyoung-analysis-section" style="display:none;">
-          <div class="bank-groups" id="my-cash-groups"></div>
-          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영되고, 은행을 바꾸면 해당 은행 표로 옮겨져요.</div>
+          <div class="two-col-grid bank-groups" id="my-cash-groups"></div>
+          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영돼요. 은행을 바꾸려면 월급분배 표의 은행 칸을 고치면 해당 은행 표로 옮겨져요.</div>
 
           <div class="two-col-grid" style="margin-top:24px;">
             <div class="card-section" id="my-card-woori"></div>
@@ -1774,6 +1787,15 @@ function updateTotals(){
     el.style.display = cardInstallments(parts[0], parts[1]).length ? "" : "none";
   });
 }
+// 긴 계좌번호/메모는 줄을 바꿔 끝까지 보이게 (내용 높이에 맞춤)
+function autosizeTextarea(el){
+  if(!el.offsetParent) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+function autosizeAll(){
+  document.querySelectorAll("#app-main textarea.extra-input").forEach(autosizeTextarea);
+}
 function refreshComputed(){
   if(!authorized) return;
   syncBoundInputs();
@@ -1784,6 +1806,7 @@ function refreshComputed(){
   recomputeMinyoungAnalysis();
   renderJointAssets();
   updateChrome();
+  autosizeAll();
 }
 
 /* 모바일 카드 표시용: 각 칸에 표 제목(금액, 계좌번호 등)을 data-label로 붙임. PC에서는 쓰이지 않음 */
@@ -1913,6 +1936,9 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var amountCellHtml = '<td class="amount-cell' + (showAccount || (options && options.alignLeft) ? "" : " num") + '"><input type="text" inputmode="numeric" class="money-input inline-amount"></td>';
     function extraCells(list){
       return (list || []).map(function(x){
+        if(x.multiline){
+          return '<td><textarea rows="1" class="name-input extra-input" data-extra="' + x.field + '" placeholder="' + escapeHtml(x.placeholder) + '"></textarea></td>';
+        }
         return '<td><input type="text" class="name-input extra-input" data-extra="' + x.field + '" placeholder="' + escapeHtml(x.placeholder) + '"></td>';
       }).join("");
     }
@@ -1980,11 +2006,14 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         setItemField(p, listKey, item.id, "day", num);
       });
     }
-    tr.querySelectorAll("input.extra-input").forEach(function(el){
+    tr.querySelectorAll(".extra-input").forEach(function(el){
       var field = el.getAttribute("data-extra");
       bind(el, field);
       el.value = item[field] || "";
-      el.addEventListener("input", function(){ setItemField(p, listKey, item.id, field, el.value.trim()); });
+      el.addEventListener("input", function(){
+        if(el.tagName === "TEXTAREA") autosizeTextarea(el);
+        setItemField(p, listKey, item.id, field, el.value.trim());
+      });
     });
     if(showAccount){
       var accountInput = tr.querySelector("input.account-input");
@@ -2267,12 +2296,14 @@ function renderMinyoungCashGroups(list){
       '<div class="section-head"><h2>고정금(현금) — ' + escapeHtml(group.bank) + '</h2>' +
         '<button class="icon-btn" data-open-add="minyoung-add-content" data-title="고정금(현금) 항목 추가" data-bank="' + escapeHtml(group.bank === "은행 미입력" ? "" : group.bank) + '">+ 추가</button></div>' +
       '<div class="table-scroll"><table>' +
-        '<thead><tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr></thead>' +
+        '<thead><tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th></th></tr></thead>' +
         '<tbody id="my-cash-body-' + idx + '"></tbody>' +
-        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="sum-left" id="my-cash-total-' + idx + '">0</td><td colspan="3"></td></tr></tfoot>' +
+        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="sum-left" id="my-cash-total-' + idx + '">0</td><td colspan="2"></td></tr></tfoot>' +
       '</table></div>';
     container.appendChild(wrap);
-    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, "minyoung", "fixedItems", { showAccount: true, bank: group.bank });
+    // 은행 칸은 제목에 있으므로 생략 (은행 변경은 월급분배 표에서)
+    renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, "minyoung", "fixedItems",
+      { alignLeft: true, afterAmount: [{ field: "account", placeholder: "계좌번호", multiline: true }], bank: group.bank });
   });
 }
 
@@ -2342,6 +2373,7 @@ document.querySelectorAll("#person-tabs button").forEach(function(btn){
     document.getElementById("minyoung-section-tabs").style.display = currentPerson === "minyoung" ? "" : "none";
     document.getElementById("salary-field-row").style.display = currentPerson === "joint" ? "none" : "";
     requestRender();
+    autosizeAll();
   });
 });
 
@@ -2354,6 +2386,7 @@ document.querySelectorAll("#person-tabs button").forEach(function(btn){
       var section = btn.getAttribute("data-section");
       document.getElementById(p + "-calc-section").style.display = section === "calc" ? "" : "none";
       document.getElementById(p + "-analysis-section").style.display = section === "analysis" ? "" : "none";
+      autosizeAll();
     });
   });
 });
@@ -3268,7 +3301,7 @@ window.addEventListener("beforeunload", function(e){
 function applyReadOnly(){
   var view = uiMode !== "edit";
   if(view){
-    document.querySelectorAll('#app-main input:not([type="checkbox"])').forEach(function(el){ el.readOnly = true; });
+    document.querySelectorAll('#app-main input:not([type="checkbox"]), #app-main textarea').forEach(function(el){ el.readOnly = true; });
     document.querySelectorAll("#app-main select").forEach(function(el){ el.disabled = true; });
   } else {
     // 다시 그려지지 않는 고정 입력칸(월급, 추가 입력폼 등)만 원래대로. 표 안 칸은 다시 그릴 때 새로 만들어짐
