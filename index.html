@@ -364,6 +364,17 @@
     #minhyun-calc-section .round-box,
     #minhyun-calc-section .round-boxes > div{padding:10px 10px 6px;}
   }
+  /* 민현 월급분석: 기업·농협 고정금(현금), KB·현대카드 고정금(카드)을 둥근 상자로 구분 */
+  #minhyun-analysis-section .two-col-grid > div{
+    background:#121217;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:12px 14px 10px;
+  }
+  #minhyun-analysis-section .two-col-grid{gap:14px; align-items:start;}
+  @media (max-width:640px){
+    #minhyun-analysis-section .two-col-grid > div{padding:10px 10px 6px;}
+  }
   /* 민영 월급분석만: 은행별 표·카드 표를 둥근 상자로 하나씩 구분 */
   #minyoung-analysis-section #my-cash-groups > div,
   #minyoung-analysis-section .card-section{
