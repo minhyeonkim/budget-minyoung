@@ -48,8 +48,12 @@ await admin(async (db) => {
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-10"), { salary: 4000000, cards: [{ id: "c1", name: "웰스", bank: "농협", amount: 0 }], fixedOverrides: {}, legacyField: "keep-me" });
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-11"), { salary: 5000000, cards: [], fixedOverrides: {} });
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-12"), { salary: 6000000, cards: [], fixedOverrides: {} });
-  await setDoc(doc(db, "budget_salaryProfiles", "minyoung_fixed"), { fixedItems: [{ id: "m1", name: "적금", amount: 700000, bank: "하나", account: "", enabled: true }] });
-  await setDoc(doc(db, "budget_salaryProfiles", "minyoung_2026-10"), { salary: 3000000, cards: [], fixedOverrides: {} });
+  await setDoc(doc(db, "budget_salaryProfiles", "minyoung_fixed"), {
+    fixedItems: [{ id: "m1", name: "적금", amount: 700000, bank: "하나", account: "", enabled: true }],
+    cardFixedWoori: [{ id: "w1", name: "코수술", amount: 550000, enabled: true }, { id: "w2", name: "기타(당월 사용금액)", amount: 0, enabled: true, auto: true }],
+    cardFixedHyundai: []
+  });
+  await setDoc(doc(db, "budget_salaryProfiles", "minyoung_2026-10"), { salary: 3000000, cards: [{ id: "mc1", name: "신용카드(현대카드)", amount: 0 }, { id: "mc2", name: "신용카드(우리카드)", amount: 0 }], fixedOverrides: {} });
   await setDoc(doc(db, "budget_salaryProfiles", "joint_fixed"), { livingItems: [{ id: "l1", name: "식비", amount: 750000, enabled: true }] });
 });
 
@@ -131,16 +135,17 @@ try {
 
   /* ===== 계산 ===== */
   await clickText(page, "월급분석");
-  check("월급 400만 − 현금 고정비 100만 − 카드 고정비 20만 − 할부 10만 = 생활비 270만",
+  check("월급 400만 − 현금 고정비 100만 − 카드(KB 고정비 20만 + 현대카드 할부 10만) = 생활비 270만",
     (await txt(page, "#af-stat-remaining")) === "2,700,000원" && (await txt(page, "#af-stat-cash")) === "1,000,000원" &&
-    (await txt(page, "#af-stat-card")) === "200,000원" && (await txt(page, "#af-stat-inst")) === "100,000원",
+    (await txt(page, "#af-stat-card")) === "300,000원" && (await txt(page, "#af-stat-inst")) === "100,000원" &&
+    (await txt(page, '#af-card-hyundai [data-sum-card]')) === "100,000" && (await page.$eval("#card-fixed-hyundai-body-inst", (e) => e.querySelectorAll("tr").length)) === 1,
     [await txt(page, "#af-stat-cash"), await txt(page, "#af-stat-card"), await txt(page, "#af-stat-inst"), await txt(page, "#af-stat-remaining")]);
   check("공동자산 민현 남는 생활비 = 월급분석 값", await page.$eval("#joint-stat-minhyun", (el) => el.textContent) === "2,700,000원");
 
   /* ===== 완료된 할부 ===== */
   await page.click("#month-next-btn");
   await waitReady(page, "2026-11");
-  check("완료된 할부(10/10)가 다음 달 합계에서 제외됨", (await txt(page, "#af-stat-inst")) === "0원" && (await txt(page, "#installments-total")) === "0", await txt(page, "#af-stat-inst"));
+  check("완료된 할부(10/10)가 다음 달 합계에서 제외됨", (await txt(page, "#af-stat-inst")) === "0원" && (await txt(page, '#af-card-hyundai [data-sum-inst]')) === "0", await txt(page, "#af-stat-inst"));
   await page.click("#month-prev-btn");
   await waitReady(page, "2026-10");
 
@@ -250,6 +255,27 @@ try {
   m10 = await read("minhyun_2026-10"); fx = await read("minhyun_fixed");
   check("전체 적용: 기본값 변경 + 기존 10월 금액 예외가 서버에서 제거됨", fx.fixedGiup[0].amount === 620000 && !(m10.fixedOverrides.g1 && "amount" in m10.fixedOverrides.g1), { ov: m10.fixedOverrides, base: fx.fixedGiup[0].amount });
 
+  /* ===== 체크(합계 포함) 변경도 전체 적용 / 이번 달만 선택 ===== */
+  const clickKb = () => page.evaluate(() => document.querySelector('#card-fixed-kb-body tr[data-row$="|k1"] td.check-cell input').click());
+  await clickKb();
+  await page.click("#save-salary-btn");
+  const enRow = await page.$('input[name="scope-en-k1"][value="all"]');
+  await page.click('input[name="scope-en-k1"][value="all"]');
+  await page.click("#confirm-save-apply");
+  await waitSaved(page);
+  let fxK = await read("minhyun_fixed"), m10k = await read("minhyun_2026-10");
+  const enAll = { modalRow: !!enRow, globalEnabled: fxK.cardFixedKb[0].enabled, ov: m10k.fixedOverrides.k1 };
+  await clickKb();
+  await page.click("#save-salary-btn");
+  await page.click('input[name="scope-en-k1"][value="month"]');
+  await page.click("#confirm-save-apply");
+  await waitSaved(page);
+  fxK = await read("minhyun_fixed"); m10k = await read("minhyun_2026-10");
+  const enMonth = { globalEnabled: fxK.cardFixedKb[0].enabled, ov: m10k.fixedOverrides.k1 };
+  check("체크 해제 + 전체 적용 → 기본값이 바뀌어 다음 달에도 해제 / 다시 체크 + 이번 달만 → 이 달만 체크",
+    enAll.modalRow && enAll.globalEnabled === false && !(enAll.ov && "enabled" in enAll.ov) &&
+    enMonth.globalEnabled === false && enMonth.ov && enMonth.ov.enabled === true, { enAll, enMonth });
+
   // 저장 후 이동
   await typeInto(page, "#salary-amount", "4200000");
   await page.click("#month-next-btn");
@@ -269,15 +295,15 @@ try {
     });
   });
   await page.waitForFunction(() => document.querySelector('[data-bind="card|minhyun||c2|amount"]') && document.querySelector('#card-fixed-hyundai-body tr[data-row$="|h2"]'), { timeout: 15000 });
-  await typeInto(page, '#cards-quick-entry [data-bind="card|minhyun||c2|amount"]', "100000");
+  await typeInto(page, '#cards-quick-entry [data-bind="card|minhyun||c2|amount"]', "300000");
   await clickText(page, "월급분석");
   await page.click('#card-fixed-hyundai-body tr[data-row$="|h2"] input.auto-check');
   const autoAmt = (sel) => page.$eval('#' + sel + ' tr[data-row$="|h2"] input.money-input', (e) => ({ v: e.value, ro: e.readOnly }));
-  const auto1 = { main: await autoAmt("card-fixed-hyundai-body"), modal: await autoAmt("modal-hyundai-body"), total: await txt(page, "#card-fixed-hyundai-total") };
+  const auto1 = { main: await autoAmt("card-fixed-hyundai-body"), modal: await autoAmt("modal-hyundai-body"), total: await txt(page, "#card-fixed-hyundai-total"), sum: await txt(page, "#af-card-hyundai [data-sum-card]") };
   await clickText(page, "월급분배");
-  await typeInto(page, '#cards-quick-entry [data-bind="card|minhyun||c2|amount"]', "200000");
+  await typeInto(page, '#cards-quick-entry [data-bind="card|minhyun||c2|amount"]', "400000");
   await clickText(page, "월급분석");
-  const auto2 = { main: await autoAmt("card-fixed-hyundai-body"), total: await txt(page, "#card-fixed-hyundai-total") };
+  const auto2 = { main: await autoAmt("card-fixed-hyundai-body"), total: await txt(page, "#card-fixed-hyundai-total"), sum: await txt(page, "#af-card-hyundai [data-sum-card]") };
   await page.click('#card-fixed-hyundai-body tr[data-row$="|h1"] input[type="checkbox"]');
   const auto3 = await autoAmt("card-fixed-hyundai-body");
   await page.click('#card-fixed-hyundai-body tr[data-row$="|h1"] input[type="checkbox"]');
@@ -295,18 +321,53 @@ try {
   check("자동 체크는 '기타' 줄에만 있고 다른 줄·다른 카드에는 없음", !onlyEtc.h1 && onlyEtc.h2 && !onlyEtc.kb, onlyEtc);
   // 자동 차액이 모든 합계에 반영되는지: 현대카드 합계 = 사용금액, 고정금(카드) 합계, 남는 생활비, 공동자산
   const flow = await page.evaluate(() => {
-    const n = (id) => Number(document.getElementById(id).textContent.replace(/[^\d-]/g, ""));
-    return { hy: n("card-fixed-hyundai-total"), kb: n("card-fixed-kb-total"), card: n("af-stat-card"), sal: n("af-stat-salary"), cash: n("af-stat-cash"), inst: n("af-stat-inst"), rem: n("af-stat-remaining"), joint: n("joint-stat-minhyun") };
+    const n = (el) => Number(el.textContent.replace(/[^\d-]/g, ""));
+    const id = (x) => n(document.getElementById(x));
+    return { hy: n(document.querySelector("#af-card-hyundai [data-sum-card]")), kb: n(document.querySelector("#af-card-kb [data-sum-card]")), card: id("af-stat-card"), sal: id("af-stat-salary"), cash: id("af-stat-cash"), rem: id("af-stat-remaining"), joint: id("joint-stat-minhyun") };
   });
-  check("자동 차액이 현대카드 합계·고정금(카드) 합계·남는 생활비·공동자산까지 반영",
-    flow.hy === 200000 && flow.card === flow.kb + flow.hy && flow.rem === flow.sal - flow.cash - flow.card - flow.inst && flow.joint === flow.rem, flow);
-  check("현대카드 자동: 사용금액−나머지 고정금 자동 계산, 사용금액 바뀌면 즉시 갱신, 해제 시 직접 입력, 저장 유지",
-    auto1.main.v === "85,100" && auto1.main.ro && auto1.modal.v === "85,100" && auto1.total === "100,000" &&
-    auto2.main.v === "185,100" && auto2.total === "200,000" && auto3.v === "200,000" &&
+  check("자동 차액·할부가 현대카드 합계·고정금(카드) 합계·남는 생활비·공동자산까지 반영 (할부 이중 차감 없음)",
+    flow.hy === 400000 && flow.card === flow.kb + flow.hy && flow.rem === flow.sal - flow.cash - flow.card && flow.joint === flow.rem, flow);
+  check("현대카드 자동: 사용금액 − 나머지 고정금 − 현대카드 할부, 사용금액 바뀌면 즉시 갱신, 카드 합계 = 사용금액, 해제 시 직접 입력, 저장 유지",
+    auto1.main.v === "185,100" && auto1.main.ro && auto1.modal.v === "185,100" && auto1.total === "200,000" && auto1.sum === "300,000" &&
+    auto2.main.v === "285,100" && auto2.total === "300,000" && auto2.sum === "400,000" && auto3.v === "300,000" &&
     autoOff.v === "" && !autoOff.ro &&
-    fxH[1].auto === true && (await read("minhyun_2026-10")).cards[1].amount === 200000 && (await st(page)).dirty.length === 0,
+    fxH[1].auto === true && (await read("minhyun_2026-10")).cards[1].amount === 400000 && (await st(page)).dirty.length === 0,
     { auto1, auto2, auto3, autoOff, fxH });
   await clickText(page, "월급분배");
+
+  /* ===== 민영 월급분배: 고정금(현금) 은행별 + 고정금(카드) 우리/현대 (자동·할부) ===== */
+  await page.click('#person-tabs button[data-person="minyoung"]');
+  await page.$eval('#minyoung-section-tabs button[data-section="calc"]', (b) => b.click());
+  await typeInto(page, '#my-cards-quick-entry [data-bind="card|minyoung||mc2|amount"]', "1000000");
+  const myAuto1 = await page.evaluate(() => ({
+    groups: [...document.querySelectorAll("#my-calc-cash-groups h2")].map((h) => h.textContent),
+    sections: [...document.querySelectorAll("#panel-minyoung #minyoung-calc-section .card-section h2")].map((h) => h.textContent),
+    w2: document.querySelector('#my-calc-card-woori-body tr[data-row$="|w2"] input.money-input').value,
+    w2Analysis: document.querySelector('#my-card-fixed-woori-body tr[data-row$="|w2"] input.money-input').value,
+    autoChecks: [...document.querySelectorAll("#my-calc-card-woori-body input.auto-check")].length
+  }));
+  await page.evaluate(() => document.querySelector('#my-calc-card-woori [data-add-inst]').click());
+  await typeInto(page, "#inst-new-name", "피부렌탈");
+  await typeInto(page, "#inst-new-amount", "130000");
+  await typeInto(page, "#inst-new-current", "1");
+  await typeInto(page, "#inst-new-total", "12");
+  await page.click("#inst-new-add");
+  const myAuto2 = await page.evaluate(() => ({
+    w2: document.querySelector('#my-calc-card-woori-body tr[data-row$="|w2"] input.money-input').value,
+    instRows: document.querySelectorAll("#my-calc-card-woori-body-inst tr").length,
+    sum: document.querySelector("#my-calc-card-woori [data-sum-card]").textContent,
+    analysisCard: document.getElementById("myaf-stat-card").textContent
+  }));
+  await page.click("#save-salary-btn");
+  await waitSaved(page);
+  const myInst = await read("minyoung_installments");
+  check("민영 월급분배: 은행별 고정금(현금) + 우리카드(코수술 + 자동 기타) + 할부, 카드 합계 = 사용금액, 저장",
+    myAuto1.groups.join() === "고정금(현금) — 하나" && myAuto1.sections.join() === "고정금(카드) — 우리카드,고정금(카드) — 현대카드" &&
+    myAuto1.w2 === "450,000" && myAuto1.w2Analysis === "450,000" && myAuto1.autoChecks === 1 &&
+    myAuto2.w2 === "320,000" && myAuto2.instRows === 1 && myAuto2.sum === "1,000,000" && myAuto2.analysisCard === "1,000,000원" &&
+    myInst && myInst.installments[0].card === "cardFixedWoori" && myInst.installments[0].monthlyAmount === 130000 && (await st(page)).dirty.length === 0,
+    { myAuto1, myAuto2, myInst });
+  await page.click('#person-tabs button[data-person="minhyun"]');
 
   /* ===== 같은 항목의 여러 화면 동기화 ===== */
   await page.click("#fixed-giup-body input.money-input", { clickCount: 3 });
@@ -347,7 +408,7 @@ try {
   const ime = await page.evaluate(() => ({ same: document.activeElement === window.__elBefore, connected: window.__elBefore.isConnected, my: document.getElementById("joint-stat-minyoung").textContent }));
   await page.evaluate(() => document.activeElement.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true })));
   await sleep(500);
-  check("한글 조합 중 다른 기기 변경이 와도 입력 칸을 다시 만들지 않음(조합 끝난 뒤 반영)", ime.same && ime.connected && ime.my === "2,400,000원", ime);
+  check("한글 조합 중 다른 기기 변경이 와도 입력 칸을 다시 만들지 않음(조합 끝난 뒤 반영)", ime.same && ime.connected && ime.my === "1,400,000원", ime);
   // 이름 원복
   await typeInto(page, "#fixed-giup-body input.name-input", "대출");
   check("이름 원복 후 미저장 없음", (await st(page)).dirty.length === 0, await st(page));
@@ -538,7 +599,8 @@ try {
     await vp.evaluate(() => window.__budgetTest.signIn("member@example.com", "pass1234"));
     await vp.waitForFunction(() => window.__budgetTest.state().ready, { timeout: 15000 });
     await vp.click("#enter-view");
-    await sleep(300);
+    await vp.waitForFunction(() => document.body.classList.contains("view-mode") && document.getElementById("cover").hidden, { timeout: 10000 });
+    await sleep(200);
     const visible = (sel) => vp.$$eval(sel, (els) => els.filter((e) => e.offsetParent !== null && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().width > 0).length);
     const before = await val(vp, "#salary-amount");
     await vp.click("#salary-amount").catch(() => {});
@@ -552,7 +614,7 @@ try {
       readOnly: await vp.$eval("#salary-amount", (e) => e.readOnly),
       unchanged: (await val(vp, "#salary-amount")) === before,
       dirty: (await st(vp)).dirty.length,
-      accountShown: await visible("#fixed-items-body .account-input")
+      accountShown: await visible("#my-calc-cash-groups .account-input")
     };
     check("PC 보기 모드: 체크박스·삭제·추가·저장 없음, 입력 불가, 계좌 등 다른 칸은 그대로 표시",
       viewPc.mode && viewPc.checkboxes === 0 && viewPc.deletes === 0 && viewPc.addBtns === 0 && viewPc.saveRow === 0 && viewPc.readOnly && viewPc.unchanged && viewPc.dirty === 0, viewPc);
@@ -563,8 +625,10 @@ try {
     await sleep(200);
     const backCover = await vp.evaluate(() => !document.getElementById("cover").hidden);
     await vp.click("#enter-edit");
-    await sleep(300);
-    const editAgain = { readOnly: await vp.$eval("#salary-amount", (e) => e.readOnly), checkboxes: await visible("#fixed-giup-body td.check-cell input"), saveRow: await visible("#save-row") };
+    await vp.waitForFunction(() => !document.body.classList.contains("view-mode") && document.getElementById("cover").hidden && document.querySelector("#fixed-giup-body td.check-cell input"), { timeout: 10000 });
+    await sleep(200);
+    const editAgain = { readOnly: await vp.$eval("#salary-amount", (e) => e.readOnly), checkboxes: await visible("#fixed-giup-body td.check-cell input"), saveRow: await visible("#save-row"),
+      dbg: await vp.evaluate(() => ({ rows: document.querySelectorAll("#fixed-giup-body tr").length, body: document.body.className, person: window.__budgetTest.state().currentPerson, calcShown: getComputedStyle(document.getElementById("minhyun-calc-section")).display, panel: getComputedStyle(document.getElementById("panel-minhyun")).display })) };
     check("표지 버튼 → 표지, 가계부 모드로 다시 들어가면 수정 가능 / 자산 현황 보기 모드는 추가·삭제 숨김",
       backCover && !editAgain.readOnly && editAgain.checkboxes > 0 && editAgain.saveRow === 1 && assetsView.forms === 0 && assetsView.deletes === 0, { backCover, editAgain, assetsView });
     // 미저장 상태에서 표지로 가려다 취소
