@@ -350,6 +350,20 @@
   .sec-actions{display:inline-flex; gap:6px;}
   /* 월급분배 표의 계좌번호 칸은 넓게 */
   td input.account-input{min-width:270px;}
+  /* 민현 월급분배: 신용카드 사용금액 / 기업은행 / 농협은행 고정금을 둥근 상자로 구분 */
+  #minhyun-calc-section .round-box,
+  #minhyun-calc-section .round-boxes > div{
+    background:#121217;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:12px 14px 10px;
+  }
+  #minhyun-calc-section .round-boxes{gap:14px;}
+  #minhyun-calc-section .round-box .field-row:last-of-type{margin-bottom:8px;}
+  @media (max-width:640px){
+    #minhyun-calc-section .round-box,
+    #minhyun-calc-section .round-boxes > div{padding:10px 10px 6px;}
+  }
   /* 민영 월급분석만: 은행별 표·카드 표를 둥근 상자로 하나씩 구분 */
   #minyoung-analysis-section #my-cash-groups > div,
   #minyoung-analysis-section .card-section{
@@ -646,6 +660,7 @@
       <div id="panel-minhyun">
 
         <div id="minhyun-calc-section">
+        <div class="round-box">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
           <h2 style="margin:0;">신용카드 사용금액</h2>
           <button class="icon-btn" id="toggle-card-edit-btn">카드 편집</button>
@@ -671,7 +686,9 @@
           </div>
         </div>
 
-        <div class="two-col-grid" style="margin-top:20px;">
+        </div>
+
+        <div class="two-col-grid round-boxes" style="margin-top:14px;">
           <div>
             <div class="section-head">
               <h2>기업은행 고정금</h2>
