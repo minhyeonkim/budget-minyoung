@@ -815,11 +815,11 @@
           <div id="hyundai-add-content" style="display:none;">
             <div class="table-scroll"><table>
               <thead>
-                <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th class="auto-col">자동</th><th></th></tr>
+                <tr><th></th><th></th><th>항목</th><th class="num">이체일</th><th class="num">금액</th><th></th></tr>
               </thead>
               <tbody id="modal-hyundai-body"></tbody>
               <tfoot>
-                <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="modal-hyundai-total">0</td><td></td><td></td></tr>
+                <tr class="total-row"><td colspan="4">현대카드 고정금 합계</td><td class="num" id="modal-hyundai-total">0</td><td></td></tr>
               </tfoot>
             </table></div>
             <div class="field-row" style="margin-top:14px;">
@@ -949,11 +949,11 @@
           <div id="my-hyundai-add-content" style="display:none;">
                 <div class="table-scroll"><table>
                   <thead>
-                    <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th class="auto-col">자동</th><th></th></tr>
+                    <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr>
                   </thead>
                   <tbody id="modal-my-hyundai-body"></tbody>
                   <tfoot>
-                    <tr class="total-row"><td colspan="3">현대카드 고정금 합계</td><td class="num" id="modal-my-hyundai-total">0</td><td></td><td></td></tr>
+                    <tr class="total-row"><td colspan="3">현대카드 고정금 합계</td><td class="num" id="modal-my-hyundai-total">0</td><td></td></tr>
                   </tfoot>
                 </table></div>
                 <div class="field-row" style="margin-top:14px;">
@@ -967,11 +967,11 @@
           <div id="my-woori-add-content" style="display:none;">
                 <div class="table-scroll"><table>
                   <thead>
-                    <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th class="auto-col">자동</th><th></th></tr>
+                    <tr><th></th><th></th><th>항목</th><th class="num">금액</th><th></th></tr>
                   </thead>
                   <tbody id="modal-my-woori-body"></tbody>
                   <tfoot>
-                    <tr class="total-row"><td colspan="3">우리카드 고정금 합계</td><td class="num" id="modal-my-woori-total">0</td><td></td><td></td></tr>
+                    <tr class="total-row"><td colspan="3">우리카드 고정금 합계</td><td class="num" id="modal-my-woori-total">0</td><td></td></tr>
                   </tfoot>
                 </table></div>
                 <div class="field-row" style="margin-top:14px;">
@@ -1955,7 +1955,6 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         : "") +
       (showAccount ? "" : amountCellHtml) +
       extraCells(options && options.afterAmount) +
-      (options && options.autoToggle ? '<td class="auto-cell">' + (isAutoEligible(item) ? '<label><input type="checkbox" class="auto-check"> 자동</label>' : "") + '</td>' : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
     function bind(el, field){
       el.dataset.bind = bindBase + field;
@@ -1964,16 +1963,12 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var checkbox = tr.querySelector('td.check-cell input[type="checkbox"]');
     var nameInput = tr.querySelector('input.name-input');
     var amountInput = tr.querySelector('input.money-input');
-    var autoCheck = tr.querySelector("input.auto-check");
-    if(autoCheck){
-      bind(autoCheck, "auto");
-      autoCheck.checked = !!item.auto;
-      autoCheck.addEventListener("change", function(){ setItemAuto(p, listKey, item.id, autoCheck.checked); });
-    }
     if(item.auto){
+      // 기타(당월 사용금액): 카드값 − 고정금 − 할부로 자동 계산, 직접 입력 불가. 왼쪽 체크로 적용 여부만 선택
       amountInput.readOnly = true;
       amountInput.classList.add("auto-amount");
-      amountInput.title = "자동 계산: 월급분배의 현대카드 사용금액 − 나머지 현대카드 고정금";
+      amountInput.placeholder = "카드값 입력 시 자동";
+      amountInput.title = "자동 계산: 월급분배의 카드값 − 위 고정금 − 할부";
     }
     bind(checkbox, "enabled");
     bind(nameInput, "name");
@@ -2066,9 +2061,9 @@ var CARD_SECTIONS = [
 function buildCardSections(){
   CARD_SECTIONS.forEach(function(c){
     var auto = !!AUTO_SOURCES[c.p + "|" + c.listKey];
-    var cols = '<th></th><th></th><th>항목</th>' + (c.showDay ? '<th class="num">이체일</th>' : "") + '<th class="num">금액</th>' + (auto ? '<th class="auto-col">자동</th>' : "") + '<th></th>';
+    var cols = '<th></th><th></th><th>항목</th>' + (c.showDay ? '<th class="num">이체일</th>' : "") + '<th class="num">금액</th><th></th>';
     var before = 3 + (c.showDay ? 1 : 0);
-    var after = 1 + (auto ? 1 : 0);
+    var after = 1;
     var key = c.p + "|" + c.listKey;
     document.getElementById(c.id).innerHTML =
       '<div class="section-head"><h2>고정금(카드) — ' + c.label + '</h2>' +
@@ -2083,7 +2078,7 @@ function buildCardSections(){
         '<tfoot><tr class="total-row"><td colspan="3">' + c.label + ' 할부 합계 (진행 중)</td><td class="num" data-sum-inst="' + key + '">0</td><td colspan="2"></td></tr></tfoot></table></div>' +
       '</div>' +
       '<div class="card-sum"><span>' + c.label + ' 합계 (고정금 + 할부)</span><strong data-sum-card="' + key + '">0</strong></div>' +
-      (auto ? '<div class="hint" style="margin-top:6px;"><strong>기타(당월 사용금액)</strong>의 <strong>자동</strong>에 체크하면: 월급분배의 ' + c.label + ' 사용금액 − 나머지 고정금 − ' + c.label + ' 할부 (체크 해제하면 직접 입력)</div>' : "");
+      (auto ? '<div class="hint" style="margin-top:6px;"><strong>기타(당월 사용금액)</strong>은 자동 계산돼요: 월급분배에 넣은 ' + c.label + ' 카드값 − 위 고정금 − ' + c.label + ' 할부. 왼쪽 체크로 적용할지 말지 고르세요.</div>' : "");
   });
 }
 buildCardSections();
