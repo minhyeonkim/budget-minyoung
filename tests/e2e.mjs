@@ -7,7 +7,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword } from "firebase/auth";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const BASE = "http://localhost:5173/index.html?emulator";
+const BASE = "http://localhost:5173/index.html?emulator&today=2026-10"; // 테스트 데이터 기준일 고정
 const URL_ = BASE + "#edit";
 const SHOTS = process.env.SHOTS;
 const RULES = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
@@ -672,6 +672,45 @@ try {
     check("모바일 보기 모드: 주소 #view로 바로 진입, 모든 줄이 '항목+금액'만 표시, 옆 스크롤 없음",
       mobileView.direct && mobileView.mh.join() === "항목+금액" && mobileView.my.join() === "항목+금액" && !mobileView.sideways, mobileView);
     await mv.close();
+  }
+
+  /* ===== 민영 월급분석: 은행 묶음 이름 수정 / 묶음 삭제 ===== */
+  {
+    const gp = await newPage(1280, 900);
+    await gp.goto(URL_);
+    await gp.waitForFunction(() => window.__budgetTest, { timeout: 15000 });
+    await gp.evaluate(() => window.__budgetTest.signIn("member@example.com", "pass1234"));
+    await waitReady(gp, "2026-10");
+    await gp.click('#person-tabs button[data-person="minyoung"]');
+    await gp.$eval('#minyoung-section-tabs button[data-section="analysis"]', (b) => b.click());
+    await sleep(300);
+    const heads = () => gp.$$eval("#my-cash-groups h2", (hs) => hs.map((h) => h.textContent.replace("고정금(현금) — ", "")));
+    const before = await heads();
+    await gp.click('[data-bank-rename="하나"]');
+    await typeInto(gp, "#bank-rename-input", "하나은행");
+    await gp.click("#bank-rename-apply");
+    await sleep(200);
+    const afterRename = await heads();
+    await gp.click("#save-salary-btn");
+    await waitSaved(gp);
+    const fxR = (await read("minyoung_fixed")).fixedItems;
+    gp.__dialogHandler = (d) => d.dismiss();
+    await gp.click('[data-bank-delete="하나은행"]');
+    await sleep(200);
+    const keptOnCancel = (await heads()).includes("하나은행");
+    gp.__dialogHandler = (d) => d.accept();
+    await gp.click('[data-bank-delete="하나은행"]');
+    await sleep(200);
+    const afterDelete = await heads();
+    const calcRows = await gp.$$eval("#fixed-items-body tr", (t) => t.length);
+    await gp.click("#save-salary-btn");
+    await waitSaved(gp);
+    const fxD = (await read("minyoung_fixed")).fixedItems;
+    check("민영 월급분석 은행 묶음: 이름 수정(항목 은행명 함께 변경) / 묶음 삭제(확인창, 취소 시 유지) 후 저장",
+      before.includes("하나") && afterRename.includes("하나은행") && !afterRename.includes("하나") && fxR.some((x) => x.bank === "하나은행") &&
+      keptOnCancel && !afterDelete.includes("하나은행") && calcRows === 0 && fxD.length === 0,
+      { before, afterRename, keptOnCancel, afterDelete, calcRows, fxD });
+    await gp.close();
   }
 
   /* ===== 공용 비밀번호 모드 ===== */

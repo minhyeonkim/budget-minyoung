@@ -1414,6 +1414,11 @@ var otherUnsubs = [];
 
 // 오늘 날짜의 "YYYY-MM" — 기기 시간대와 상관없이 대한민국 달력(Asia/Seoul) 기준
 function todayYearMonth(){
+  // 로컬 테스트(?emulator) 전용: &today=YYYY-MM 으로 오늘 날짜를 고정 (배포 사이트에서는 동작 안 함)
+  if(USE_EMULATOR){
+    var fixed = /[?&]today=(\d{4}-\d{2})/.exec(location.search);
+    if(fixed) return fixed[1];
+  }
   try {
     var parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit" }).formatToParts(new Date());
     var y = parts.find(function(x){ return x.type === "year"; }).value;
@@ -2337,7 +2342,11 @@ function renderMinyoungCashGroups(list){
     var wrap = document.createElement("div");
     wrap.innerHTML =
       '<div class="section-head"><h2>고정금(현금) — ' + escapeHtml(group.bank) + '</h2>' +
-        '<button class="icon-btn" data-open-add="minyoung-add-content" data-title="고정금(현금) 항목 추가" data-bank="' + escapeHtml(group.bank === "은행 미입력" ? "" : group.bank) + '">+ 추가</button></div>' +
+        '<span class="sec-actions">' +
+          '<button class="icon-btn" data-open-add="minyoung-add-content" data-title="고정금(현금) 항목 추가" data-bank="' + escapeHtml(group.bank === "은행 미입력" ? "" : group.bank) + '">+ 추가</button>' +
+          '<button class="icon-btn" data-bank-rename="' + escapeHtml(group.bank) + '">이름 수정</button>' +
+          '<button class="icon-btn danger" data-bank-delete="' + escapeHtml(group.bank) + '">묶음 삭제</button>' +
+        '</span></div>' +
       '<div class="table-scroll"><table>' +
         '<thead><tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th></th></tr></thead>' +
         '<tbody id="my-cash-body-' + idx + '"></tbody>' +
@@ -2511,9 +2520,49 @@ document.addEventListener("click", function(e){
     if(addBtn.dataset.bank !== undefined) document.getElementById("new-item-bank").value = addBtn.dataset.bank;
     return;
   }
+  var renameBtn = e.target.closest && e.target.closest("[data-bank-rename]");
+  if(renameBtn){ openBankRenameModal(renameBtn.dataset.bankRename); return; }
+  var delBtn = e.target.closest && e.target.closest("[data-bank-delete]");
+  if(delBtn){ deleteBankGroup(delBtn.dataset.bankDelete); return; }
   var instBtn = e.target.closest && e.target.closest("[data-add-inst]");
   if(instBtn) openInstModal(instBtn.dataset.addInst, instBtn.dataset.label);
 });
+/* 민영 월급분석 은행 묶음: 이름(은행) 바꾸기 / 묶음째 삭제 — 저장 버튼을 눌러야 서버에 반영 */
+function bankGroupItems(bank){
+  return getFixedList("minyoung", "fixedItems").filter(function(x){
+    return ((x.bank || "").trim() || "은행 미입력") === bank;
+  });
+}
+function openBankRenameModal(bank){
+  if(!canEdit("minyoung")) return;
+  var html =
+    '<div class="field"><label>은행(묶음) 이름</label><input type="text" id="bank-rename-input"></div>' +
+    '<p class="hint" style="margin:8px 0 0;">이 묶음의 항목 ' + bankGroupItems(bank).length + '개의 은행 이름이 함께 바뀌어요. 같은 이름의 묶음이 이미 있으면 그 묶음으로 합쳐져요.</p>' +
+    '<div class="modal-actions"><button class="ghost" id="bank-rename-cancel">취소</button><button class="primary" id="bank-rename-apply">바꾸기</button></div>';
+  openDynamicModal("고정금(현금) — " + bank + " 이름 수정", html, null);
+  var input = document.getElementById("bank-rename-input");
+  input.value = bank === "은행 미입력" ? "" : bank;
+  input.focus();
+  document.getElementById("bank-rename-cancel").addEventListener("click", closeEditModal);
+  document.getElementById("bank-rename-apply").addEventListener("click", function(){
+    var name = input.value.trim();
+    if(!name || !canEdit("minyoung")) return;
+    bankGroupItems(bank).forEach(function(item){ item.bank = name; });
+    closeEditModal();
+    requestRender();
+  });
+}
+function deleteBankGroup(bank){
+  if(!canEdit("minyoung")) return;
+  var items = bankGroupItems(bank);
+  var names = items.map(function(x){ return x.name; }).join(", ");
+  if(!confirm("'고정금(현금) — " + bank + "' 묶음과 항목 " + items.length + "개를 삭제할까요?\n(" + names + ")\n\n월급분배 표에서도 같이 지워지고, [민영 저장]을 눌러야 서버에 반영돼요.")) return;
+  var ids = items.map(function(x){ return x.id; });
+  work.fixed.minyoung.fixedItems = getFixedList("minyoung", "fixedItems").filter(function(x){ return ids.indexOf(x.id) === -1; });
+  ids.forEach(function(id){ delete pendingAmountChanges[id]; delete scopeChoices[id]; });
+  requestRender();
+}
+
 function openInstModal(key, label){
   var parts = key.split("|"), p = parts[0], listKey = parts[1];
   if(!canEdit(p)) return;
