@@ -345,6 +345,9 @@
     font-weight:700;
   }
   td input.extra-input{min-width:90px; font-weight:400;}
+  td.perf-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
+  .card-sum.perf-sum{background:rgba(255,179,126,.12); color:var(--warn);}
+  .card-sum.perf-sum strong.perf-done{color:var(--good);}
   td.link-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td.auto-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td input.money-input.auto-amount{color:var(--accent); border-style:dashed; cursor:default;}
@@ -560,7 +563,8 @@
   /* ---- 보기 모드: 수정 불가, 체크박스·삭제·추가·저장 숨김 ---- */
   body.view-mode td.drag-cell, body.view-mode td.check-cell, body.view-mode td.auto-cell, body.view-mode th.auto-col{width:0; padding:0 !important; font-size:0;}
   body.view-mode td.drag-cell > *, body.view-mode td.check-cell > *, body.view-mode td.auto-cell > *, body.view-mode td.link-cell > *{display:none;}
-  body.view-mode td.link-cell{width:0; padding:0 !important;}
+  body.view-mode td.link-cell, body.view-mode td.perf-cell, body.view-mode th.perf-col{width:0; padding:0 !important; font-size:0;}
+  body.view-mode td.perf-cell > *{display:none;}
   body.view-mode td.row-actions{padding:0;}
   body.view-mode td.row-actions > *{display:none;}
   body.view-mode tr.disabled-row{display:none;}
@@ -1799,6 +1803,7 @@ function readBound(bind){
     if(field === "enabled") return item.enabled !== false;
     if(field === "auto") return !!item.auto;
     if(field === "linked") return item.linked !== false;
+    if(field === "perf") return !!item.perf;
     return item[field];
   }
   if(kind === "card"){
@@ -1810,6 +1815,7 @@ function readBound(bind){
     if(!inst) return undefined;
     var f = parts[4];
     if(f === "enabled") return inst.enabled !== false;
+    if(f === "perf") return !!inst.perf;
     if(f === "current") return computeCurrentInstallment(inst, currentMonth);
     return inst[f];
   }
@@ -1863,6 +1869,14 @@ function updateTotals(){
   document.querySelectorAll("[data-sum-card]").forEach(function(el){
     var parts = el.dataset.sumCard.split("|");
     el.textContent = fmtPlain(cardListTotal(parts[0], parts[1]));
+  });
+  document.querySelectorAll("[data-perf-sum]").forEach(function(el){
+    var parts = el.dataset.perfSum.split("|");
+    var total = cardPerfTotal(parts[0], parts[1]);
+    var target = Number(el.dataset.perfTarget) || 0;
+    var rest = target - total;
+    el.textContent = fmt(total) + (target ? (rest > 0 ? "  ·  " + fmtPlain(rest) + "원 남음" : "  ·  달성 ✓") : "");
+    el.classList.toggle("perf-done", target > 0 && rest <= 0);
   });
   document.querySelectorAll("[data-inst-wrap]").forEach(function(el){
     var parts = el.dataset.instWrap.split("|");
@@ -2054,6 +2068,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
         : "") +
       (showAccount ? "" : amountCellHtml) +
       extraCells(options && options.afterAmount) +
+      (options && options.perfToggle ? '<td class="perf-cell"><label><input type="checkbox" class="perf-check"> 실적</label></td>' : "") +
       (options && options.autoToggle ? '<td class="auto-cell">' + (isAutoEligible(item) ? '<label><input type="checkbox" class="auto-check"> 자동</label>' : "") + '</td>' : "") +
       (options && options.linkToggle ? '<td class="link-cell"><label title="체크: 월급분배·월급분석 둘 다 표시 / 해제: 만든 탭에만 표시"><input type="checkbox" class="link-check"> 연결</label></td>' : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
@@ -2064,6 +2079,12 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var checkbox = tr.querySelector('td.check-cell input[type="checkbox"]');
     var nameInput = tr.querySelector('input.name-input');
     var amountInput = tr.querySelector('input.money-input');
+    var perfCheck = tr.querySelector("input.perf-check");
+    if(perfCheck){
+      bind(perfCheck, "perf");
+      perfCheck.checked = !!item.perf;
+      perfCheck.addEventListener("change", function(){ setItemField(p, listKey, item.id, "perf", perfCheck.checked || undefined); });
+    }
     var linkCheck = tr.querySelector("input.link-check");
     if(linkCheck){
       bind(linkCheck, "linked");
@@ -2173,14 +2194,15 @@ var CARD_SECTIONS = [
   { id: "af-card-kb", p: "minhyun", listKey: "cardFixedKb", label: "KB카드", bodyId: "card-fixed-kb-body", totalId: "card-fixed-kb-total", addContent: "kb-add-content", showDay: true },
   { id: "af-card-hyundai", p: "minhyun", listKey: "cardFixedHyundai", label: "현대카드", bodyId: "card-fixed-hyundai-body", totalId: "card-fixed-hyundai-total", addContent: "hyundai-add-content", showDay: true },
   { id: "my-card-woori", p: "minyoung", listKey: "cardFixedWoori", label: "우리카드", bodyId: "my-card-fixed-woori-body", totalId: "my-card-fixed-woori-total", addContent: "my-woori-add-content" },
-  { id: "my-card-hyundai", p: "minyoung", listKey: "cardFixedHyundai", label: "현대카드", bodyId: "my-card-fixed-hyundai-body", totalId: "my-card-fixed-hyundai-total", addContent: "my-hyundai-add-content" }
+  { id: "my-card-hyundai", p: "minyoung", listKey: "cardFixedHyundai", label: "현대카드", bodyId: "my-card-fixed-hyundai-body", totalId: "my-card-fixed-hyundai-total", addContent: "my-hyundai-add-content",
+    perf: { label: "실적 인정금액(50만원)", target: 500000 } }
 ];
 function buildCardSections(){
   CARD_SECTIONS.forEach(function(c){
     var auto = !!AUTO_SOURCES[c.p + "|" + c.listKey];
-    var cols = '<th></th><th></th><th>항목</th>' + (c.showDay ? '<th class="num">이체일</th>' : "") + '<th class="num">금액</th>' + (auto ? '<th class="auto-col">자동</th>' : "") + '<th></th>';
+    var cols = '<th></th><th></th><th>항목</th>' + (c.showDay ? '<th class="num">이체일</th>' : "") + '<th class="num">금액</th>' + (c.perf ? '<th class="perf-col">실적</th>' : "") + (auto ? '<th class="auto-col">자동</th>' : "") + '<th></th>';
     var before = 3 + (c.showDay ? 1 : 0);
-    var after = 1 + (auto ? 1 : 0);
+    var after = 1 + (auto ? 1 : 0) + (c.perf ? 1 : 0);
     var key = c.p + "|" + c.listKey;
     document.getElementById(c.id).innerHTML =
       '<div class="section-head"><h2>고정금(카드) — ' + c.label + '</h2>' +
@@ -2190,22 +2212,33 @@ function buildCardSections(){
         '<tfoot><tr class="total-row"><td colspan="' + before + '">' + c.label + ' 고정금 합계</td><td class="num" id="' + c.totalId + '">0</td>' + '<td></td>'.repeat(after) + '</tr></tfoot></table></div>' +
       '<div class="inst-sub" data-inst-wrap="' + key + '">' +
         '<div class="inst-title">' + c.label + ' 할부</div>' +
-        '<div class="table-scroll"><table><thead><tr><th></th><th></th><th>항목</th><th class="num">월 납입액</th><th class="num">회차</th><th></th></tr></thead>' +
+        '<div class="table-scroll"><table><thead><tr><th></th><th></th><th>항목</th><th class="num">월 납입액</th><th class="num">회차</th>' + (c.perf ? '<th class="perf-col">실적</th>' : "") + '<th></th></tr></thead>' +
         '<tbody id="' + c.bodyId + '-inst"></tbody>' +
-        '<tfoot><tr class="total-row"><td colspan="3">' + c.label + ' 할부 합계 (진행 중)</td><td class="num" data-sum-inst="' + key + '">0</td><td colspan="2"></td></tr></tfoot></table></div>' +
+        '<tfoot><tr class="total-row"><td colspan="3">' + c.label + ' 할부 합계 (진행 중)</td><td class="num" data-sum-inst="' + key + '">0</td><td colspan="' + (c.perf ? 3 : 2) + '"></td></tr></tfoot></table></div>' +
       '</div>' +
       '<div class="card-sum"><span>' + c.label + ' 합계 (고정금 + 할부)</span><strong data-sum-card="' + key + '">0</strong></div>' +
+      (c.perf ? '<div class="card-sum perf-sum"><span>' + c.perf.label + '</span><strong data-perf-sum="' + key + '" data-perf-target="' + c.perf.target + '">0</strong></div>' : "") +
       (auto ? '<div class="hint" style="margin-top:6px;"><strong>기타(당월 사용금액)</strong>의 <strong>자동</strong>에 체크하면: 월급분배의 ' + c.label + ' 사용금액 − 나머지 고정금 − ' + c.label + ' 할부 (체크 해제하면 직접 입력)</div>' : "");
   });
 }
 buildCardSections();
 function renderCardSection(c){
   var auto = !!AUTO_SOURCES[c.p + "|" + c.listKey];
-  renderEditableList(c.bodyId, c.totalId, computeEffectiveList(c.p, c.listKey), c.p, c.listKey, { showDay: !!c.showDay, autoToggle: auto });
-  renderInstallments(c.bodyId + "-inst", c.p, c.listKey);
+  renderEditableList(c.bodyId, c.totalId, computeEffectiveList(c.p, c.listKey), c.p, c.listKey, { showDay: !!c.showDay, autoToggle: auto, perfToggle: !!c.perf });
+  renderInstallments(c.bodyId + "-inst", c.p, c.listKey, { perfToggle: !!c.perf });
+}
+/* 카드 실적: 실적 체크한 줄(고정금 + 진행 중 할부, 왼쪽 체크된 것만)의 금액 합계 */
+function cardPerfTotal(p, listKey){
+  var fixed = computeEffectiveList(p, listKey).reduce(function(s, x){
+    return s + (x.perf && x.enabled !== false ? (Number(x.amount) || 0) : 0);
+  }, 0);
+  var inst = cardInstallments(p, listKey).reduce(function(s, x){
+    return s + (x.perf && isInstallmentActive(x) ? (Number(x.monthlyAmount) || 0) : 0);
+  }, 0);
+  return fixed + inst;
 }
 
-function renderInstallments(bodyId, p, listKey){
+function renderInstallments(bodyId, p, listKey, opts){
   var tbody = document.getElementById(bodyId);
   tbody.innerHTML = "";
   cardInstallments(p, listKey).forEach(function(item){
@@ -2222,8 +2255,15 @@ function renderInstallments(bodyId, p, listKey){
         '<span style="color:var(--text-faint);">/</span>' +
         '<input type="text" inputmode="numeric" class="day-input inst-total" maxlength="2">' +
       '</span></td>' +
+      (opts && opts.perfToggle ? '<td class="perf-cell"><label><input type="checkbox" class="perf-check"> 실적</label></td>' : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
-    var checkbox = tr.querySelector('input[type="checkbox"]');
+    var checkbox = tr.querySelector('td.check-cell input[type="checkbox"]');
+    var instPerf = tr.querySelector("input.perf-check");
+    if(instPerf){
+      instPerf.dataset.bind = bindBase + "perf";
+      instPerf.checked = !!item.perf;
+      instPerf.addEventListener("change", function(){ updateInstallment(p, item.id, { perf: instPerf.checked || undefined }); });
+    }
     var nameInput = tr.querySelector('input.name-input');
     var amountInput = tr.querySelector('input.money-input');
     var curInput = tr.querySelector('input.inst-current');

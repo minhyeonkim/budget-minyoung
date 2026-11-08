@@ -387,6 +387,38 @@ try {
   await page.$eval('#minyoung-section-tabs button[data-section="calc"]', (b) => b.click());
   await page.click('#person-tabs button[data-person="minhyun"]');
 
+  /* ===== 민영 현대카드 실적 인정금액(50만원) ===== */
+  {
+    const prevInst = (await read("minyoung_installments")) || { installments: [] };
+    await admin(async (db) => {
+      await updateDoc(doc(db, "budget_salaryProfiles", "minyoung_fixed"), {
+        cardFixedHyundai: [{ id: "hy1", name: "통신비", amount: 143660, enabled: true }, { id: "hy2", name: "기타(당월 사용금액)", amount: 0, enabled: true, auto: true }]
+      });
+      await setDoc(doc(db, "budget_salaryProfiles", "minyoung_installments"), {
+        installments: prevInst.installments.concat([{ id: "mi2", name: "자동차보험", card: "cardFixedHyundai", monthlyAmount: 137272, totalInstallments: 12, anchorMonth: "2026-10", anchorInstallment: 1, enabled: true }])
+      });
+    });
+    await page.click('#person-tabs button[data-person="minyoung"]');
+    await page.$eval('#minyoung-section-tabs button[data-section="analysis"]', (b) => b.click());
+    await page.waitForFunction(() => document.querySelector('#my-card-fixed-hyundai-body tr[data-row$="|hy1"]') && document.querySelector('#my-card-fixed-hyundai-body-inst tr[data-row$="|mi2"]'), { timeout: 15000 });
+    const perfText = () => page.$eval('#my-card-hyundai [data-perf-sum]', (e) => e.textContent);
+    const p0 = await perfText();
+    await page.$eval('#my-card-fixed-hyundai-body tr[data-row$="|hy1"] input.perf-check', (e) => e.click());
+    await page.$eval('#my-card-fixed-hyundai-body-inst tr[data-row$="|mi2"] input.perf-check', (e) => e.click());
+    const p1 = await perfText();
+    const label = await page.$eval('#my-card-hyundai .perf-sum span', (e) => e.textContent);
+    const woori = await page.$$eval('#my-card-woori .perf-sum, #my-card-woori input.perf-check, #af-card-hyundai input.perf-check', (x) => x.length);
+    await page.click("#save-salary-btn");
+    await waitSaved(page);
+    const fxP = (await read("minyoung_fixed")).cardFixedHyundai.find((x) => x.id === "hy1");
+    const inP = (await read("minyoung_installments")).installments.find((x) => x.id === "mi2");
+    check("민영 현대카드 실적: 실적 체크한 고정금·할부 합산 → '실적 인정금액(50만원)'에 표시(남은 금액), 다른 카드엔 없음, 저장 유지",
+      label === "실적 인정금액(50만원)" && p0.startsWith("0원") && p1 === "280,932원  ·  219,068원 남음" && woori === 0 && fxP.perf === true && inP.perf === true && (await st(page)).dirty.length === 0,
+      { label, p0, p1, woori, fxP, inP });
+    await page.$eval('#minyoung-section-tabs button[data-section="calc"]', (b) => b.click());
+    await page.click('#person-tabs button[data-person="minhyun"]');
+  }
+
   /* ===== 같은 항목의 여러 화면 동기화 ===== */
   await page.click("#fixed-giup-body input.money-input", { clickCount: 3 });
   await page.keyboard.press("Backspace");
