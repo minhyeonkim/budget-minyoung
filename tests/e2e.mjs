@@ -46,7 +46,7 @@ await admin(async (db) => {
     installments: [{ id: "i1", name: "자동차보험", monthlyAmount: 100000, totalInstallments: 10, anchorMonth: "2026-10", anchorInstallment: 10, enabled: true }]
   });
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-10"), { salary: 4000000, cards: [{ id: "c1", name: "웰스", bank: "농협", amount: 0 }], fixedOverrides: {}, legacyField: "keep-me" });
-  await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-11"), { salary: 5000000, cards: [], fixedOverrides: {} });
+  await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-11"), { salary: 5000000, fixedOverrides: {} }); // 카드 목록 없이 월급만 저장된 달
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-12"), { salary: 6000000, cards: [], fixedOverrides: {} });
   await setDoc(doc(db, "budget_salaryProfiles", "minyoung_fixed"), {
     fixedItems: [{ id: "m1", name: "적금", amount: 700000, bank: "하나", account: "", enabled: true }],
@@ -145,6 +145,8 @@ try {
   /* ===== 완료된 할부 ===== */
   await page.click("#month-next-btn");
   await waitReady(page, "2026-11");
+  const novCards = await page.$$eval("#cards-quick-entry .field label", (ls) => ls.map((l) => l.textContent));
+  check("카드 목록 없이 월급만 저장된 달도 카드 입력칸(웰스·현대) 표시", novCards.length === 2 && novCards[0].includes("웰스") && novCards[1].includes("현대"), novCards);
   check("완료된 할부(10/10)가 다음 달 합계에서 제외됨", (await txt(page, "#af-stat-inst")) === "0원" && (await txt(page, '#af-card-hyundai [data-sum-inst]')) === "0", await txt(page, "#af-stat-inst"));
   await page.click("#month-prev-btn");
   await waitReady(page, "2026-10");

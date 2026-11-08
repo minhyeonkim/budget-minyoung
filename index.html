@@ -1479,7 +1479,8 @@ function normalizeMonth(p, data){
   var out = { fixedOverrides: clone(data.fixedOverrides || {}) };
   if(p !== "joint"){
     out.salary = Number(data.salary) || 0;
-    out.cards = clone(Array.isArray(data.cards) ? data.cards : []);
+    // 카드 목록이 아직 저장된 적 없는 달(월급만 저장한 달 등)은 기본 카드 입력칸을 보여줌
+    out.cards = clone(Array.isArray(data.cards) ? data.cards : emptyMonth(p).cards);
   }
   return out;
 }
