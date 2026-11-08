@@ -49,7 +49,8 @@ await admin(async (db) => {
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-11"), { salary: 5000000, fixedOverrides: {} }); // 카드 목록 없이 월급만 저장된 달
   await setDoc(doc(db, "budget_salaryProfiles", "minhyun_2026-12"), { salary: 6000000, cards: [], fixedOverrides: {} });
   await setDoc(doc(db, "budget_salaryProfiles", "minyoung_fixed"), {
-    fixedItems: [{ id: "m1", name: "적금", amount: 700000, bank: "하나", account: "", enabled: true }],
+    fixedItems: [{ id: "m1", name: "적금", amount: 700000, bank: "하나", account: "", enabled: true },
+      { id: "mcard", name: "신용카드(우리카드)", amount: 0, bank: "우리", account: "1002-000", enabled: false }],
     cardFixedWoori: [{ id: "w1", name: "코수술", amount: 550000, enabled: true }, { id: "w2", name: "기타(당월 사용금액)", amount: 0, enabled: true, auto: true }],
     cardFixedHyundai: []
   });
@@ -346,6 +347,12 @@ try {
     cardSections: document.querySelectorAll("#minyoung-calc-section .card-section").length
   }));
   await typeInto(page, '#my-cards-quick-entry [data-bind="card|minyoung||mc2|amount"]', "1000000");
+  const linked = await page.evaluate(() => {
+    const inp = document.querySelector('#fixed-items-body tr[data-row$="|mcard"] input.money-input');
+    return { v: inp.value, ro: inp.readOnly, fixedTotal: document.getElementById("fixed-total").textContent };
+  });
+  check("민영 고정비 '신용카드(우리카드)' 항목 금액 = 그 달 우리카드 사용금액 자동 연결(입력 불가), 체크 해제라 합계에는 안 들어감",
+    linked.v === "1,000,000" && linked.ro && linked.fixedTotal === "700,000", linked);
   await page.$eval('#minyoung-section-tabs button[data-section="analysis"]', (b) => b.click());
   const myAuto1 = await page.evaluate(() => ({
     groups: [...document.querySelectorAll("#my-cash-groups h2")].map((h) => h.textContent),
@@ -371,8 +378,8 @@ try {
   await waitSaved(page);
   const myInst = await read("minyoung_installments");
   check("민영: 월급분배는 예전 단일 표 그대로 / 월급분석에 은행별 고정금(현금)+우리카드(코수술+자동 기타)+할부, 카드 합계=사용금액, 저장",
-    calcLayout.table === 1 && calcLayout.heading.includes("고정비 / 차감 항목") && calcLayout.cardSections === 0 &&
-    myAuto1.groups.join() === "고정금(현금) — 하나" && myAuto1.groupAccount && myAuto1.sections.join() === "고정금(카드) — 우리카드,고정금(카드) — 현대카드" &&
+    calcLayout.table === 2 && calcLayout.heading.includes("고정비 / 차감 항목") && calcLayout.cardSections === 0 &&
+    myAuto1.groups.join() === "고정금(현금) — 하나,고정금(현금) — 우리" && myAuto1.groupAccount && myAuto1.sections.join() === "고정금(카드) — 우리카드,고정금(카드) — 현대카드" &&
     myAuto1.w2 === "450,000" && myAuto1.autoChecks === 1 &&
     myAuto2.w2 === "320,000" && myAuto2.instRows === 1 && myAuto2.sum === "1,000,000" && myAuto2.analysisCard === "1,000,000원" &&
     myInst && myInst.installments[0].card === "cardFixedWoori" && myInst.installments[0].monthlyAmount === 130000 && (await st(page)).dirty.length === 0,
@@ -710,7 +717,7 @@ try {
     const fxD = (await read("minyoung_fixed")).fixedItems;
     check("민영 월급분석 은행 묶음: 이름 수정(항목 은행명 함께 변경) / 묶음 삭제(확인창, 취소 시 유지) 후 저장",
       before.includes("하나") && afterRename.includes("하나은행") && !afterRename.includes("하나") && fxR.some((x) => x.bank === "하나은행") &&
-      keptOnCancel && !afterDelete.includes("하나은행") && calcRows === 0 && fxD.length === 0,
+      keptOnCancel && !afterDelete.includes("하나은행") && calcRows === 1 && fxD.length === 1 && fxD[0].id === "mcard",
       { before, afterRename, keptOnCancel, afterDelete, calcRows, fxD });
     await gp.close();
   }

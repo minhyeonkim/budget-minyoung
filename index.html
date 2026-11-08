@@ -1541,6 +1541,7 @@ function computeEffectiveList(p, listKey){
     return merged;
   });
   if(AUTO_SOURCES[p + "|" + listKey]) applyCardAuto(p, listKey, list);
+  if(p === "minyoung" && listKey === "fixedItems") applyCardLink(p, list);
   return list;
 }
 
@@ -1568,6 +1569,19 @@ function applyCardAuto(p, listKey, list){
   }, 0);
   var inst = sumActiveInstallments(cardInstallments(p, listKey));
   autoItem.amount = usage ? usage - others - inst : 0;
+}
+/* 민영 고정비 표: 항목 이름이 신용카드 사용금액의 카드 이름과 같으면(예: 신용카드(현대카드))
+   그 달 카드값을 그대로 연결. 어느 계좌로 이체할지 보려는 용도라 보통 체크 해제해서 중복 계산을 막음 */
+function applyCardLink(p, list){
+  var cards = getMonthWork(p).cards || [];
+  list.forEach(function(item){
+    var name = (item.name || "").trim();
+    var card = cards.find(function(c){ return (c.name || "").trim() === name; });
+    if(card){
+      item.amount = Number(card.amount) || 0;
+      item.linkedCard = true;
+    }
+  });
 }
 // 카드 한 장의 합계 = 고정금(자동 포함) + 진행 중 할부
 function cardListTotal(p, listKey){
@@ -1597,6 +1611,8 @@ function setItemAmount(p, listKey, id, amount){
   if(!canEdit(p)) return;
   var item = findItem(p, listKey, id);
   if(!item || item.auto) return;
+  var eff = computeEffectiveList(p, listKey).find(function(x){ return x.id === id; });
+  if(eff && eff.linkedCard) return; // 카드값과 연결된 항목은 직접 입력하지 않음
   var existing = pendingAmountChanges[id];
   var oldAmount;
   if(existing){
@@ -2018,6 +2034,11 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
       bind(autoCheck, "auto");
       autoCheck.checked = !!item.auto;
       autoCheck.addEventListener("change", function(){ setItemAuto(p, listKey, item.id, autoCheck.checked); });
+    }
+    if(item.linkedCard){
+      amountInput.readOnly = true;
+      amountInput.classList.add("auto-amount");
+      amountInput.title = "신용카드 사용금액의 '" + item.name + "' 금액과 자동 연결 (카드값을 바꾸면 같이 바뀜)";
     }
     if(item.auto){
       amountInput.readOnly = true;
