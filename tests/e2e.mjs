@@ -378,7 +378,7 @@ try {
   await waitSaved(page);
   const myInst = await read("minyoung_installments");
   check("민영: 월급분배는 예전 단일 표 그대로 / 월급분석에 은행별 고정금(현금)+우리카드(코수술+자동 기타)+할부, 카드 합계=사용금액, 저장",
-    calcLayout.table === 2 && calcLayout.heading.includes("고정비 / 차감 항목") && calcLayout.cardSections === 0 &&
+    calcLayout.table === 2 && calcLayout.heading.includes("입금 해야 할 항목(고정비/차감항목)") && calcLayout.cardSections === 0 &&
     myAuto1.groups.join() === "고정금(현금) — 하나,고정금(현금) — 우리" && myAuto1.groupAccount && myAuto1.sections.join() === "고정금(카드) — 우리카드,고정금(카드) — 현대카드" &&
     myAuto1.w2 === "450,000" && myAuto1.autoChecks === 1 &&
     myAuto2.w2 === "320,000" && myAuto2.instRows === 1 && myAuto2.sum === "1,000,000" && myAuto2.analysisCard === "1,000,000원" &&
