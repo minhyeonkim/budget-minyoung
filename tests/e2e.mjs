@@ -683,7 +683,7 @@ try {
     await mv.close();
   }
 
-  /* ===== 민영 월급분석: 은행 묶음 이름 수정 / 묶음 삭제 ===== */
+  /* ===== 민영 고정금(현금) '연결' 체크 + 은행 묶음 이름 수정 / 묶음 삭제 ===== */
   {
     const gp = await newPage(1280, 900);
     await gp.goto(URL_);
@@ -691,18 +691,46 @@ try {
     await gp.evaluate(() => window.__budgetTest.signIn("member@example.com", "pass1234"));
     await waitReady(gp, "2026-10");
     await gp.click('#person-tabs button[data-person="minyoung"]');
+    const calcNames = () => gp.$$eval("#fixed-items-body tr input.name-input:not(.extra-input)", (els) => els.map((e) => e.value));
+    const anaNames = () => gp.$$eval("#my-cash-groups tr input.name-input:not(.extra-input)", (els) => els.map((e) => e.value));
+    const heads = () => gp.$$eval("#my-cash-groups h2", (hs) => hs.map((h) => h.textContent.replace("고정금(현금) — ", "")));
+    const linkCol = await gp.$$eval("#fixed-items-body", (b) => [...b[0].closest("table").querySelectorAll("thead th")].map((t) => t.textContent).join("|"));
     await gp.$eval('#minyoung-section-tabs button[data-section="analysis"]', (b) => b.click());
     await sleep(300);
-    const heads = () => gp.$$eval("#my-cash-groups h2", (hs) => hs.map((h) => h.textContent.replace("고정금(현금) — ", "")));
-    const before = await heads();
+    // 월급분석에서 추가 → 분석 전용
+    await gp.click('#my-cash-groups [data-open-add][data-bank="하나"]');
+    await typeInto(gp, "#new-item-name", "분석전용");
+    await typeInto(gp, "#new-item-amount", "50000");
+    await gp.click("#add-item-btn");
+    await gp.click("#modal-close-btn");
+    await sleep(200);
+    const s1 = { ana: await anaNames(), calc: await calcNames(), anaCash: await txt(gp, "#myaf-stat-cash"), calcFixed: await txt(gp, "#stat-fixed") };
+    // 연결 체크 → 분배에도 보임
+    const linkOf = (name, scope) => gp.evaluate((n, sc) => { const tr = [...document.querySelectorAll(sc + " tr")].find((t) => t.querySelector("input.name-input") && t.querySelector("input.name-input").value === n); return tr && tr.querySelector("input.link-check"); }, name, scope);
+    await gp.evaluate(() => [...document.querySelectorAll("#my-cash-groups tr")].find((t) => t.querySelector("input.name-input") && t.querySelector("input.name-input").value === "분석전용").querySelector("input.link-check").click());
+    const s2 = { calc: await calcNames() };
+    await gp.evaluate(() => [...document.querySelectorAll("#my-cash-groups tr")].find((t) => t.querySelector("input.name-input") && t.querySelector("input.name-input").value === "분석전용").querySelector("input.link-check").click());
+    // 분배에서 신용카드(우리카드) 연결 해제 → 분석에서만 빠짐
+    await gp.evaluate(() => [...document.querySelectorAll("#fixed-items-body tr")].find((t) => t.querySelector("input.name-input").value === "신용카드(우리카드)").querySelector("input.link-check").click());
+    const s3 = { ana: await anaNames(), calc: await calcNames(), heads: await heads() };
+    await gp.click("#save-salary-btn");
+    await waitSaved(gp);
+    const fx1 = (await read("minyoung_fixed")).fixedItems;
+    const ana = fx1.find((x) => x.name === "분석전용"), mc = fx1.find((x) => x.id === "mcard");
+    check("연결 체크: 분석에서 추가하면 분석 전용(분배엔 안 보임·분배 합계 영향 없음), 연결 체크 시 분배에도 표시, 분배에서 연결 해제하면 분석에서만 빠짐",
+      linkCol.includes("은행|연결") &&
+      s1.ana.includes("분석전용") && !s1.calc.includes("분석전용") && s1.anaCash === "750,000원" && s1.calcFixed === "700,000원" &&
+      s2.calc.includes("분석전용") &&
+      !s3.ana.includes("신용카드(우리카드)") && s3.calc.includes("신용카드(우리카드)") && !s3.heads.includes("우리") &&
+      ana && ana.home === "analysis" && ana.linked === false && mc && mc.linked === false,
+      { linkCol, s1, s2, s3, ana, mc });
+
+    // 이름 수정 / 묶음 삭제 (연결 항목은 분석에서만 빠지고, 분석 전용 항목은 삭제)
     await gp.click('[data-bank-rename="하나"]');
     await typeInto(gp, "#bank-rename-input", "하나은행");
     await gp.click("#bank-rename-apply");
     await sleep(200);
     const afterRename = await heads();
-    await gp.click("#save-salary-btn");
-    await waitSaved(gp);
-    const fxR = (await read("minyoung_fixed")).fixedItems;
     gp.__dialogHandler = (d) => d.dismiss();
     await gp.click('[data-bank-delete="하나은행"]');
     await sleep(200);
@@ -711,14 +739,15 @@ try {
     await gp.click('[data-bank-delete="하나은행"]');
     await sleep(200);
     const afterDelete = await heads();
-    const calcRows = await gp.$$eval("#fixed-items-body tr", (t) => t.length);
+    const calcAfter = await calcNames();
     await gp.click("#save-salary-btn");
     await waitSaved(gp);
     const fxD = (await read("minyoung_fixed")).fixedItems;
-    check("민영 월급분석 은행 묶음: 이름 수정(항목 은행명 함께 변경) / 묶음 삭제(확인창, 취소 시 유지) 후 저장",
-      before.includes("하나") && afterRename.includes("하나은행") && !afterRename.includes("하나") && fxR.some((x) => x.bank === "하나은행") &&
-      keptOnCancel && !afterDelete.includes("하나은행") && calcRows === 1 && fxD.length === 1 && fxD[0].id === "mcard",
-      { before, afterRename, keptOnCancel, afterDelete, calcRows, fxD });
+    const m1 = fxD.find((x) => x.id === "m1");
+    check("묶음 이름 수정 / 묶음 삭제: 분석 전용 항목은 삭제, 분배와 연결된 항목은 분석에서만 빠지고 분배에는 남음",
+      afterRename.includes("하나은행") && keptOnCancel && !afterDelete.includes("하나은행") &&
+      calcAfter.includes("적금") && !fxD.some((x) => x.name === "분석전용") && m1 && m1.bank === "하나은행" && m1.linked === false,
+      { afterRename, keptOnCancel, afterDelete, calcAfter, fxD });
     await gp.close();
   }
 

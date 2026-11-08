@@ -345,6 +345,7 @@
     font-weight:700;
   }
   td input.extra-input{min-width:90px; font-weight:400;}
+  td.link-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td.auto-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td input.money-input.auto-amount{color:var(--accent); border-style:dashed; cursor:default;}
   .sec-actions{display:inline-flex; gap:6px;}
@@ -502,6 +503,7 @@
     table:not(.compact) tbody td.drag-cell{display:none;}
     table:not(.compact) tbody td.check-cell{order:0; flex:0 0 auto; width:auto; align-self:center;}
     table:not(.compact) tbody td.name-cell{order:0; flex:1 1 50%;}
+    table:not(.compact) tbody td.link-cell{flex:0 0 auto; align-self:center;}
     table:not(.compact) tbody td.row-actions{order:3; flex:0 0 auto; margin-left:auto; align-self:center;}
     table:not(.compact) tbody tr:has(td.name-cell) td.row-actions{order:1;}
     /* 계좌번호는 한 줄 전체를 써서 끝까지 보이게 */
@@ -557,7 +559,8 @@
 
   /* ---- 보기 모드: 수정 불가, 체크박스·삭제·추가·저장 숨김 ---- */
   body.view-mode td.drag-cell, body.view-mode td.check-cell, body.view-mode td.auto-cell, body.view-mode th.auto-col{width:0; padding:0 !important; font-size:0;}
-  body.view-mode td.drag-cell > *, body.view-mode td.check-cell > *, body.view-mode td.auto-cell > *{display:none;}
+  body.view-mode td.drag-cell > *, body.view-mode td.check-cell > *, body.view-mode td.auto-cell > *, body.view-mode td.link-cell > *{display:none;}
+  body.view-mode td.link-cell{width:0; padding:0 !important;}
   body.view-mode td.row-actions{padding:0;}
   body.view-mode td.row-actions > *{display:none;}
   body.view-mode tr.disabled-row{display:none;}
@@ -932,22 +935,22 @@
         </div>
         <div class="table-scroll"><table>
           <thead>
-            <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr>
+            <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th>연결</th><th></th></tr>
           </thead>
           <tbody id="fixed-items-body"></tbody>
           <tfoot>
-            <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="fixed-total">0</td><td colspan="2"></td><td></td></tr>
+            <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="fixed-total">0</td><td colspan="3"></td><td></td></tr>
           </tfoot>
         </table></div>
 
         <div id="minyoung-add-content" style="display:none;">
           <div class="table-scroll"><table>
             <thead>
-              <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th></th></tr>
+              <tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>은행</th><th>연결</th><th></th></tr>
             </thead>
             <tbody id="modal-minyoung-body"></tbody>
             <tfoot>
-              <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="modal-minyoung-total">0</td><td colspan="2"></td><td></td></tr>
+              <tr class="total-row"><td colspan="3">고정비 합계</td><td class="sum-left" id="modal-minyoung-total">0</td><td colspan="3"></td><td></td></tr>
             </tfoot>
           </table></div>
           <div class="field-row" style="margin-top:14px;">
@@ -983,7 +986,7 @@
 
         <div id="minyoung-analysis-section" style="display:none;">
           <div class="two-col-grid bank-groups" id="my-cash-groups"></div>
-          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;">고정금(현금)은 "월급분배" 탭의 고정비 / 차감 항목을 은행별로 나눠 보여주는 것으로, 같은 데이터입니다. 어느 쪽에서 수정해도 그대로 반영돼요. 은행을 바꾸려면 월급분배 표의 은행 칸을 고치면 해당 은행 표로 옮겨져요.</div>
+          <div class="hint" style="font-size:12px; color:var(--text-faint); margin:6px 0 0;"><strong>연결</strong> 체크한 항목은 월급분배의 "입금 해야 할 항목"과 같은 데이터예요(어느 쪽에서 고쳐도 같이 바뀜). 연결을 풀면 만든 탭에만 보여요. 여기서 "+ 추가"한 항목은 월급분석 전용으로 만들어져요.</div>
 
           <div class="two-col-grid" style="margin-top:24px;">
             <div class="card-section" id="my-card-woori"></div>
@@ -1671,8 +1674,20 @@ function setItemAuto(p, listKey, id, on){
   if(on){ delete pendingAmountChanges[id]; delete scopeChoices[id]; }
   requestRender();
 }
-function deleteItem(p, listKey, id){
+function deleteItem(p, listKey, id, viewTab){
   if(!canEdit(p)) return;
+  if(viewTab){
+    var raw = findItem(p, listKey, id);
+    if(raw && raw.linked !== false){
+      if(itemHome(raw) !== viewTab){
+        // 다른 탭에서 만든 연결 항목: 이 탭에서만 빼기 (연결 해제)
+        raw.linked = false;
+        requestRender();
+        return;
+      }
+      if(!confirm("'" + raw.name + "'은(는) 월급분배·월급분석 양쪽에 연결된 항목이에요.\n양쪽 모두에서 삭제할까요?\n\n(다른 탭에는 남기고 싶으면 취소하고 '연결' 체크를 해제하세요)")) return;
+    }
+  }
   work.fixed[p][listKey] = getFixedList(p, listKey).filter(function(x){ return x.id !== id; });
   delete pendingAmountChanges[id];
   delete scopeChoices[id];
@@ -1783,6 +1798,7 @@ function readBound(bind){
     if(!item) return undefined;
     if(field === "enabled") return item.enabled !== false;
     if(field === "auto") return !!item.auto;
+    if(field === "linked") return item.linked !== false;
     return item[field];
   }
   if(kind === "card"){
@@ -1830,11 +1846,12 @@ function syncBoundInputs(){
 function updateTotals(){
   document.querySelectorAll("[data-sum-list]").forEach(function(el){
     var parts = el.dataset.sumList.split("|");
-    el.textContent = fmtPlain(sumEnabled(computeEffectiveList(parts[0], parts[1])));
+    var list = el.dataset.sumTab ? minyoungCashList(el.dataset.sumTab) : computeEffectiveList(parts[0], parts[1]);
+    el.textContent = fmtPlain(sumEnabled(list));
   });
   if(document.querySelector("[data-sum-bank]")){
     var groups = {};
-    groupByBank(computeEffectiveList("minyoung", "fixedItems")).forEach(function(g){ groups[g.bank] = sumEnabled(g.items); });
+    groupByBank(minyoungCashList("analysis")).forEach(function(g){ groups[g.bank] = sumEnabled(g.items); });
     document.querySelectorAll("[data-sum-bank]").forEach(function(el){
       el.textContent = fmtPlain(groups[el.dataset.sumBank] || 0);
     });
@@ -1915,10 +1932,27 @@ function computeMinhyunRemaining(){
   return computeMinhyunAnalysis().remaining;
 }
 
+/* 민영 고정금(현금) 목록은 하나지만, 항목마다 "연결" 체크로 어느 탭에 보일지 정함
+   - 연결 ☑ (기본): 월급분배·월급분석 둘 다 보임 (같은 데이터)
+   - 연결 ☐ : 만든 탭(home)에만 보임. home 기본은 월급분배, 월급분석에서 추가하면 "analysis" */
+function itemHome(item){ return item.home === "analysis" ? "analysis" : "calc"; }
+function visibleIn(item, tab){ return item.linked !== false || itemHome(item) === tab; }
+function minyoungCashList(tab){
+  return computeEffectiveList("minyoung", "fixedItems").filter(function(x){ return visibleIn(x, tab); });
+}
+var minyoungAddHome = "calc"; // "+ 추가" 창을 어느 탭에서 열었는지
+function setItemLinked(p, listKey, id, linked){
+  if(!canEdit(p)) return;
+  var item = findItem(p, listKey, id);
+  if(!item) return;
+  if(linked) delete item.linked; else item.linked = false;
+  requestRender();
+}
+
 function computeMinyoungRemaining(){
   var data = getMonthWork("minyoung");
   var cardsTotal = (data.cards || []).reduce(function(s, c){ return s + (Number(c.amount) || 0); }, 0);
-  var fixedTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
+  var fixedTotal = sumEnabled(minyoungCashList("calc"));
   var salary = Number(data.salary) || 0;
   return salary - fixedTotal - cardsTotal;
 }
@@ -2021,6 +2055,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
       (showAccount ? "" : amountCellHtml) +
       extraCells(options && options.afterAmount) +
       (options && options.autoToggle ? '<td class="auto-cell">' + (isAutoEligible(item) ? '<label><input type="checkbox" class="auto-check"> 자동</label>' : "") + '</td>' : "") +
+      (options && options.linkToggle ? '<td class="link-cell"><label title="체크: 월급분배·월급분석 둘 다 표시 / 해제: 만든 탭에만 표시"><input type="checkbox" class="link-check"> 연결</label></td>' : "") +
       '<td class="row-actions"><button class="icon-btn danger">삭제</button></td>';
     function bind(el, field){
       el.dataset.bind = bindBase + field;
@@ -2029,6 +2064,12 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     var checkbox = tr.querySelector('td.check-cell input[type="checkbox"]');
     var nameInput = tr.querySelector('input.name-input');
     var amountInput = tr.querySelector('input.money-input');
+    var linkCheck = tr.querySelector("input.link-check");
+    if(linkCheck){
+      bind(linkCheck, "linked");
+      linkCheck.checked = item.linked !== false;
+      linkCheck.addEventListener("change", function(){ setItemLinked(p, listKey, item.id, linkCheck.checked); });
+    }
     var autoCheck = tr.querySelector("input.auto-check");
     if(autoCheck){
       bind(autoCheck, "auto");
@@ -2097,7 +2138,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
       // 은행이 바뀌면 월급분석의 은행별 묶음이 달라지므로 입력을 마친 뒤 다시 그림
       bankInput.addEventListener("change", function(){ requestRender(); });
     }
-    tr.querySelector("button.danger").addEventListener("click", function(){ deleteItem(p, listKey, item.id); });
+    tr.querySelector("button.danger").addEventListener("click", function(){ deleteItem(p, listKey, item.id, options && options.viewTab); });
     attachRowDrag(tr, item.id, function(draggedId, targetId){ reorderItem(p, listKey, draggedId, targetId); });
     tbody.appendChild(tr);
   });
@@ -2106,6 +2147,7 @@ function renderEditableList(bodyId, totalId, items, p, listKey, options){
     totalEl.dataset.sumBank = options.bank;
   } else {
     totalEl.dataset.sumList = p + "|" + listKey;
+    if(options && options.viewTab) totalEl.dataset.sumTab = options.viewTab; else delete totalEl.dataset.sumTab;
   }
 }
 
@@ -2345,10 +2387,9 @@ function renderMinyoung(){
   renderCardsQuickEntry("minyoung", "my-cards-quick-entry", data.cards || []);
   renderCardsEditBody("minyoung", "my-cards-edit-body", data.cards || [], false);
 
-  var list = computeEffectiveList("minyoung", "fixedItems");
-  renderEditableList("fixed-items-body", "fixed-total", list, "minyoung", "fixedItems", { showAccount: true });
-  renderEditableList("modal-minyoung-body", "modal-minyoung-total", list, "minyoung", "fixedItems", { showAccount: true });
-  renderMinyoungCashGroups(list);
+  renderEditableList("fixed-items-body", "fixed-total", minyoungCashList("calc"), "minyoung", "fixedItems", { showAccount: true, linkToggle: true, viewTab: "calc" });
+  renderEditableList("modal-minyoung-body", "modal-minyoung-total", minyoungCashList(minyoungAddHome), "minyoung", "fixedItems", { showAccount: true, linkToggle: true, viewTab: minyoungAddHome });
+  renderMinyoungCashGroups(minyoungCashList("analysis"));
 
   MY_CARD_FIXED.forEach(function(c){
     renderEditableList("modal-my-" + c.key + "-body", "modal-my-" + c.key + "-total", computeEffectiveList("minyoung", c.listKey), "minyoung", c.listKey, { autoToggle: true });
@@ -2370,14 +2411,14 @@ function renderMinyoungCashGroups(list){
           '<button class="icon-btn danger" data-bank-delete="' + escapeHtml(group.bank) + '">묶음 삭제</button>' +
         '</span></div>' +
       '<div class="table-scroll"><table>' +
-        '<thead><tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th></th></tr></thead>' +
+        '<thead><tr><th></th><th></th><th>항목</th><th>금액</th><th>계좌번호</th><th>연결</th><th></th></tr></thead>' +
         '<tbody id="my-cash-body-' + idx + '"></tbody>' +
-        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="sum-left" id="my-cash-total-' + idx + '">0</td><td colspan="2"></td></tr></tfoot>' +
+        '<tfoot><tr class="total-row"><td colspan="3">' + escapeHtml(group.bank) + ' 합계</td><td class="sum-left" id="my-cash-total-' + idx + '">0</td><td colspan="3"></td></tr></tfoot>' +
       '</table></div>';
     container.appendChild(wrap);
     // 은행 칸은 제목에 있으므로 생략 (은행 변경은 월급분배 표에서)
     renderEditableList("my-cash-body-" + idx, "my-cash-total-" + idx, group.items, "minyoung", "fixedItems",
-      { alignLeft: true, afterAmount: [{ field: "account", placeholder: "계좌번호", multiline: true }], bank: group.bank });
+      { alignLeft: true, afterAmount: [{ field: "account", placeholder: "계좌번호", multiline: true }], bank: group.bank, linkToggle: true, viewTab: "analysis" });
   });
 }
 
@@ -2400,7 +2441,7 @@ function groupByBank(items){
 
 function computeMinyoungAnalysis(){
   var data = getMonthWork("minyoung");
-  var cashTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
+  var cashTotal = sumEnabled(minyoungCashList("analysis"));
   var cardTotal = MY_CARD_FIXED.reduce(function(s, c){
     return s + cardListTotal("minyoung", c.listKey);
   }, 0);
@@ -2422,7 +2463,7 @@ function recomputeMinyoungSummary(){
   var data = getMonthWork("minyoung");
   var cardsTotal = (data.cards || []).reduce(function(s, c){ return s + (Number(c.amount) || 0); }, 0);
   document.getElementById("my-cards-total").textContent = fmtPlain(cardsTotal);
-  var fixedTotal = sumEnabled(computeEffectiveList("minyoung", "fixedItems"));
+  var fixedTotal = sumEnabled(minyoungCashList("calc"));
   var salary = Number(data.salary) || 0;
   var remaining = salary - fixedTotal - cardsTotal;
   document.getElementById("stat-salary").textContent = fmt(salary);
@@ -2532,12 +2573,18 @@ document.getElementById("add-nh-btn-analysis").addEventListener("click", functio
   openEditModal("농협은행 고정금 추가", "nh-add-content");
 });
 document.getElementById("add-item-btn-open").addEventListener("click", function(){
+  minyoungAddHome = "calc";
+  requestRender();
   openEditModal("입금 해야 할 항목 추가", "minyoung-add-content");
 });
 // 카드 섹션·은행별 표의 "+ 추가" / "+ 할부" (화면을 다시 그려도 동작하도록 위임 처리)
 document.addEventListener("click", function(e){
   var addBtn = e.target.closest && e.target.closest("[data-open-add]");
   if(addBtn){
+    if(addBtn.dataset.openAdd === "minyoung-add-content"){
+      minyoungAddHome = addBtn.closest("#minyoung-analysis-section") ? "analysis" : "calc";
+      requestRender();
+    }
     openEditModal(addBtn.dataset.title, addBtn.dataset.openAdd);
     if(addBtn.dataset.bank !== undefined) document.getElementById("new-item-bank").value = addBtn.dataset.bank;
     return;
@@ -2552,7 +2599,7 @@ document.addEventListener("click", function(e){
 /* 민영 월급분석 은행 묶음: 이름(은행) 바꾸기 / 묶음째 삭제 — 저장 버튼을 눌러야 서버에 반영 */
 function bankGroupItems(bank){
   return getFixedList("minyoung", "fixedItems").filter(function(x){
-    return ((x.bank || "").trim() || "은행 미입력") === bank;
+    return visibleIn(x, "analysis") && ((x.bank || "").trim() || "은행 미입력") === bank;
   });
 }
 function openBankRenameModal(bank){
@@ -2578,10 +2625,14 @@ function deleteBankGroup(bank){
   if(!canEdit("minyoung")) return;
   var items = bankGroupItems(bank);
   var names = items.map(function(x){ return x.name; }).join(", ");
-  if(!confirm("'고정금(현금) — " + bank + "' 묶음과 항목 " + items.length + "개를 삭제할까요?\n(" + names + ")\n\n월급분배 표에서도 같이 지워지고, [민영 저장]을 눌러야 서버에 반영돼요.")) return;
-  var ids = items.map(function(x){ return x.id; });
-  work.fixed.minyoung.fixedItems = getFixedList("minyoung", "fixedItems").filter(function(x){ return ids.indexOf(x.id) === -1; });
-  ids.forEach(function(id){ delete pendingAmountChanges[id]; delete scopeChoices[id]; });
+  if(!confirm("월급분석에서 '고정금(현금) — " + bank + "' 묶음을 지울까요?\n(" + names + ")\n\n월급분석에서 만든 항목은 삭제되고, 월급분배와 연결된 항목은 월급분석에서만 빠져요(월급분배에는 그대로 남아요).\n[민영 저장]을 눌러야 서버에 반영돼요.")) return;
+  var removeIds = [];
+  items.forEach(function(x){
+    if(itemHome(x) === "analysis") removeIds.push(x.id);
+    else x.linked = false;
+  });
+  work.fixed.minyoung.fixedItems = getFixedList("minyoung", "fixedItems").filter(function(x){ return removeIds.indexOf(x.id) === -1; });
+  removeIds.forEach(function(id){ delete pendingAmountChanges[id]; delete scopeChoices[id]; });
   requestRender();
 }
 
@@ -2654,6 +2705,7 @@ document.getElementById("add-item-btn").addEventListener("click", function(){
   var name = nameEl.value.trim();
   if(!name) return;
   var item = { id: uid(), name: name, account: accountEl.value.trim(), bank: bankEl.value.trim(), amount: parseAmount(amtEl.value), enabled: true };
+  if(minyoungAddHome === "analysis"){ item.home = "analysis"; item.linked = false; } // 월급분석에서 추가하면 분석 전용
   if(addItem("minyoung", "fixedItems", item)){
     nameEl.value = ""; accountEl.value = ""; bankEl.value = ""; amtEl.value = "";
   }
