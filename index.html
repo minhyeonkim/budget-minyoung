@@ -3439,8 +3439,8 @@ function savingsMonthlyTotal(){
 }
 function formatPeriod(months){
   var y = Math.floor(months / 12), m = months % 12;
-  var txt = (y ? y + "년 " : "") + (m ? m + "개월" : (y ? "" : "0개월"));
-  return txt.trim() + " (" + months + "개월)";
+  if(!y) return months + "개월";
+  return (y + "년 " + (m ? m + "개월" : "")).trim() + " (" + months + "개월)";
 }
 function endMonthLabel(months){
   // 이번 달에 1회차를 갚는다고 보고, 마지막 회차가 들어가는 달

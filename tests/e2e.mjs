@@ -633,7 +633,7 @@ try {
   const repay3 = await p2.evaluate(() => document.getElementById("repay-monthly").value);
   check("상환 기간 계산: 매달 적금 합계(100만)로 대출 2,000만 → 1년 8개월(20개월), 금액 바꾸면 7개월, '적금 합계로' 되돌리기",
     repay1.monthly === "1,000,000" && repay1.row.includes("1년 8개월 (20개월)") && repay1.period === "1년 8개월 (20개월)" &&
-    repay2 === "7개월 (7개월)" && repay3 === "1,000,000", { repay1, repay2, repay3 });
+    repay2 === "7개월" && repay3 === "1,000,000", { repay1, repay2, repay3 });
   const before = await countLoans();
   const invalid = [];
   for (const [limit, used] of [["30,000,000", "-5"], ["30,000,000", "1.5"], ["10,000,000", "20,000,000"], ["1,00", "0"]]) {
