@@ -352,6 +352,10 @@
   td.auto-cell label{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-dim); white-space:nowrap; cursor:pointer;}
   td input.money-input.auto-amount{color:var(--accent); border-style:dashed; cursor:default;}
   .sec-actions{display:inline-flex; gap:6px;}
+  .repay-order-btns{display:inline-flex; align-items:center; gap:4px; white-space:nowrap;}
+  .repay-order-btns .repay-rank{display:inline-block; min-width:18px; font-weight:800; color:var(--accent);}
+  .repay-order-btns .icon-btn{padding:2px 7px;}
+  body.view-mode .repay-order-btns .icon-btn{display:none;}
   /* 월급분배 표의 계좌번호 칸은 넓게 */
   td input.account-input{min-width:270px;}
   /* 민현 월급분배: 신용카드 사용금액 / 기업은행 / 농협은행 고정금을 둥근 상자로 구분 */
@@ -1221,11 +1225,11 @@
       </div>
       <div class="table-scroll"><table>
         <thead>
-          <tr><th>담당</th><th>항목명</th><th class="num">대출 잔액</th><th class="num">이 대출만 갚으면</th><th class="num">위에서부터 순서대로 갚으면</th></tr>
+          <tr><th class="repay-order-col">순서</th><th>담당</th><th>항목명</th><th class="num">대출 잔액</th><th class="num">이 대출만 갚으면</th><th class="num">위에서부터 순서대로 갚으면</th></tr>
         </thead>
         <tbody id="repay-body"></tbody>
         <tfoot>
-          <tr class="total-row"><td colspan="2">전체</td><td class="num" id="repay-total-balance">0</td><td class="num" id="repay-total-period" colspan="2">-</td></tr>
+          <tr class="total-row"><td colspan="3">전체</td><td class="num" id="repay-total-balance">0</td><td class="num" id="repay-total-period" colspan="2">-</td></tr>
         </tfoot>
       </table></div>
       <div class="summary-grid" style="margin-top:12px;">
@@ -1258,7 +1262,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, getDocFromServer, onSnapshot, collection, addDoc, deleteDoc,
-  serverTimestamp, runTransaction, connectFirestoreEmulator
+  serverTimestamp, runTransaction, connectFirestoreEmulator, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 var firebaseConfig = {
@@ -3446,6 +3450,38 @@ function endMonthLabel(months){
   // 이번 달에 1회차를 갚는다고 보고, 마지막 회차가 들어가는 달
   return formatMonthLabel(shiftMonth(todayYearMonth(), Math.max(months, 1) - 1));
 }
+/* 상환 순서: 대출 문서의 repayOrder 숫자 순 (없으면 기존 표 순서). ▲▼로 바꾸면 바로 서버에 저장 */
+function repayOrderedLoans(){
+  return loansCache.map(function(x, i){ return { item: x, i: i }; }).sort(function(a, b){
+    var ao = typeof a.item.repayOrder === "number" ? a.item.repayOrder : 1000 + a.i;
+    var bo = typeof b.item.repayOrder === "number" ? b.item.repayOrder : 1000 + b.i;
+    return ao - bo;
+  }).map(function(x){ return x.item; });
+}
+var repayMoving = false;
+function moveRepayLoan(id, delta){
+  if(uiMode !== "edit" || repayMoving) return;
+  var list = repayOrderedLoans();
+  var i = list.findIndex(function(x){ return x.id === id; });
+  var j = i + delta;
+  if(i < 0 || j < 0 || j >= list.length) return;
+  var moved = list.splice(i, 1)[0];
+  list.splice(j, 0, moved);
+  // 화면 먼저 바꾸고, 전체 순서를 한 번에 저장
+  list.forEach(function(x, k){ x.repayOrder = k; });
+  renderRepayment();
+  repayMoving = true;
+  var batch = writeBatch(db);
+  list.forEach(function(x, k){ batch.update(doc(db, ASSET_COL, x.id), { repayOrder: k }); });
+  batch.commit().then(function(){
+    stickyError = null;
+    flashStatus("상환 순서 저장 완료", "ok");
+  }).catch(function(err){
+    stickyError = "상환 순서 저장 실패: " + (err.code || err.message);
+    updateChrome();
+  }).finally(function(){ repayMoving = false; });
+}
+
 function renderRepayment(){
   var input = document.getElementById("repay-monthly");
   if(!repayManual && document.activeElement !== input) setMoneyValue(input, savingsMonthlyTotal());
@@ -3453,7 +3489,8 @@ function renderRepayment(){
   var tbody = document.getElementById("repay-body");
   tbody.innerHTML = "";
   var cumulative = 0, totalBalance = 0;
-  loansCache.forEach(function(item){
+  var ordered = repayOrderedLoans();
+  ordered.forEach(function(item, idx){
     var bal = Math.max(Number(item.used) || 0, 0);
     totalBalance += bal;
     cumulative += bal;
@@ -3465,12 +3502,21 @@ function renderRepayment(){
       seq = formatPeriod(m2) + " · " + endMonthLabel(m2) + " 완료";
     }
     var tr = document.createElement("tr");
+    tr.dataset.loanId = item.id;
     tr.innerHTML =
+      '<td class="repay-order-cell"><span class="repay-order-btns">' +
+        '<span class="repay-rank">' + (idx + 1) + '</span>' +
+        '<button class="icon-btn" data-repay-move="-1" title="위로"' + (idx === 0 ? " disabled" : "") + '>▲</button>' +
+        '<button class="icon-btn" data-repay-move="1" title="아래로"' + (idx === ordered.length - 1 ? " disabled" : "") + '>▼</button>' +
+      '</span></td>' +
       '<td>' + escapeHtml(item.owner) + '</td>' +
       '<td>' + escapeHtml(item.name) + '</td>' +
       '<td class="num">' + fmtPlain(bal) + '</td>' +
       '<td class="num">' + escapeHtml(alone) + '</td>' +
       '<td class="num">' + escapeHtml(seq) + '</td>';
+    tr.querySelectorAll("[data-repay-move]").forEach(function(btn){
+      btn.addEventListener("click", function(){ moveRepayLoan(item.id, Number(btn.dataset.repayMove)); });
+    });
     tbody.appendChild(tr);
   });
   document.getElementById("repay-total-balance").textContent = fmtPlain(totalBalance);

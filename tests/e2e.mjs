@@ -634,6 +634,27 @@ try {
   check("상환 기간 계산: 매달 적금 합계(100만)로 대출 2,000만 → 1년 8개월(20개월), 금액 바꾸면 7개월, '적금 합계로' 되돌리기",
     repay1.monthly === "1,000,000" && repay1.row.includes("1년 8개월 (20개월)") && repay1.period === "1년 8개월 (20개월)" &&
     repay2 === "7개월" && repay3 === "1,000,000", { repay1, repay2, repay3 });
+  // 상환 순서 바꾸기: 대출B(300만) 추가 → ▲로 맨 위로 → 순서대로 기간 다시 계산 + 서버에 순서 저장
+  await typeInto(p2, "#loan-name", "대출B");
+  await typeInto(p2, "#loan-limit", "5,000,000");
+  await typeInto(p2, "#loan-used", "3,000,000");
+  await p2.click("#add-loan-btn");
+  await p2.waitForFunction(() => document.querySelectorAll("#repay-body tr").length === 2, { timeout: 10000 });
+  const seqOf = () => p2.$$eval("#repay-body tr", (trs) => trs.map((tr) => tr.cells[2].textContent + "=" + tr.cells[5].textContent.split(" · ")[0]));
+  const o1 = await seqOf();
+  await p2.$eval('#repay-body tr:nth-child(2) [data-repay-move="-1"]', (b) => b.click());
+  await sleep(500);
+  const o2 = await seqOf();
+  const orders = await admin(async (db) => (await getDocs(collection(db, "budget_assets"))).docs.filter((d) => d.data().kind === "loan").map((d) => d.data().name + ":" + d.data().repayOrder).sort().join(","));
+  const name1 = o1[0].split("=")[0], name2 = o1[1].split("=")[0];
+  const alone = { "마이너스통장": "1년 8개월 (20개월)", "대출B": "3개월" };
+  check("상환 순서: ▲로 두 번째 대출을 맨 위로 → '순서대로 갚으면' 기간이 새 순서로 다시 계산되고 순서가 서버에 저장됨",
+    o1[0] === name1 + "=" + alone[name1] && o1[1] === name2 + "=1년 11개월 (23개월)" &&
+    o2[0] === name2 + "=" + alone[name2] && o2[1] === name1 + "=1년 11개월 (23개월)" &&
+    orders === [name2 + ":0", name1 + ":1"].sort().join(","),
+    { o1, o2, orders });
+  await admin(async (db) => { for (const d of (await getDocs(collection(db, "budget_assets"))).docs) if (d.data().name === "대출B") await deleteDoc(d.ref); });
+  await p2.waitForFunction(() => document.querySelectorAll("#repay-body tr").length === 1, { timeout: 10000 });
   const before = await countLoans();
   const invalid = [];
   for (const [limit, used] of [["30,000,000", "-5"], ["30,000,000", "1.5"], ["10,000,000", "20,000,000"], ["1,00", "0"]]) {
