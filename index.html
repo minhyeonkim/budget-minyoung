@@ -1210,6 +1210,29 @@
       <div class="field-error" id="saving-error" style="display:none;"></div>
       <div class="hint">추가하면 바로 저장돼요.</div>
     </div>
+
+    <!-- 상환 기간 계산: 매달 적금 합계만큼 대출을 갚는다고 가정 (저장하지 않는 계산용) -->
+    <div class="card">
+      <h2>상환 기간 계산</h2>
+      <p class="hint" style="margin:-6px 0 12px;">매달 아래 금액만큼 대출을 갚는다고 가정한 계산이에요. 이자는 빼고 원금만으로 계산해요. 이번 달부터 갚는 것으로 보고 완료 예정 달을 보여줘요.</p>
+      <div class="field-row">
+        <div class="field" style="max-width:320px;"><label>매달 갚는 금액 (기본: 적금 합계)</label><input type="text" inputmode="numeric" class="money-input" id="repay-monthly"></div>
+        <div class="field" style="flex:0; align-self:flex-end;"><button class="ghost" id="repay-reset-btn">적금 합계로</button></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead>
+          <tr><th>담당</th><th>항목명</th><th class="num">대출 잔액</th><th class="num">이 대출만 갚으면</th><th class="num">위에서부터 순서대로 갚으면</th></tr>
+        </thead>
+        <tbody id="repay-body"></tbody>
+        <tfoot>
+          <tr class="total-row"><td colspan="2">전체</td><td class="num" id="repay-total-balance">0</td><td class="num" id="repay-total-period" colspan="2">-</td></tr>
+        </tfoot>
+      </table></div>
+      <div class="summary-grid" style="margin-top:12px;">
+        <div class="stat"><div class="label">총 상환 기간</div><div class="value accent" id="repay-stat-period">-</div></div>
+        <div class="stat"><div class="label">완료 예정</div><div class="value good" id="repay-stat-end">-</div></div>
+      </div>
+    </div>
   </section>
   </div>
 </div>
@@ -3404,9 +3427,76 @@ function renderAssets(){
   });
   document.getElementById("saving-total").textContent = fmtPlain(savingTotal);
   document.getElementById("stat-saving-total").textContent = fmt(savingTotal);
+  renderRepayment();
   labelTableCells(document.getElementById("view-assets"));
   applyReadOnly();
 }
+
+/* ---------- 상환 기간 계산 (계산만, 저장 안 함) ---------- */
+var repayManual = false; // 사용자가 "매달 갚는 금액"을 직접 바꿨는지 (아니면 적금 합계를 따라감)
+function savingsMonthlyTotal(){
+  return savingsCache.reduce(function(s, x){ return s + (Number(x.amount) || 0); }, 0);
+}
+function formatPeriod(months){
+  var y = Math.floor(months / 12), m = months % 12;
+  var txt = (y ? y + "년 " : "") + (m ? m + "개월" : (y ? "" : "0개월"));
+  return txt.trim() + " (" + months + "개월)";
+}
+function endMonthLabel(months){
+  // 이번 달에 1회차를 갚는다고 보고, 마지막 회차가 들어가는 달
+  return formatMonthLabel(shiftMonth(todayYearMonth(), Math.max(months, 1) - 1));
+}
+function renderRepayment(){
+  var input = document.getElementById("repay-monthly");
+  if(!repayManual && document.activeElement !== input) setMoneyValue(input, savingsMonthlyTotal());
+  var monthly = parseAmount(input.value);
+  var tbody = document.getElementById("repay-body");
+  tbody.innerHTML = "";
+  var cumulative = 0, totalBalance = 0;
+  loansCache.forEach(function(item){
+    var bal = Math.max(Number(item.used) || 0, 0);
+    totalBalance += bal;
+    cumulative += bal;
+    var alone = "-", seq = "-";
+    if(bal === 0){ alone = seq = "갚을 금액 없음"; }
+    else if(monthly > 0){
+      var m1 = Math.ceil(bal / monthly), m2 = Math.ceil(cumulative / monthly);
+      alone = formatPeriod(m1);
+      seq = formatPeriod(m2) + " · " + endMonthLabel(m2) + " 완료";
+    }
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td>' + escapeHtml(item.owner) + '</td>' +
+      '<td>' + escapeHtml(item.name) + '</td>' +
+      '<td class="num">' + fmtPlain(bal) + '</td>' +
+      '<td class="num">' + escapeHtml(alone) + '</td>' +
+      '<td class="num">' + escapeHtml(seq) + '</td>';
+    tbody.appendChild(tr);
+  });
+  document.getElementById("repay-total-balance").textContent = fmtPlain(totalBalance);
+  var periodEl = document.getElementById("repay-stat-period");
+  var endEl = document.getElementById("repay-stat-end");
+  var footEl = document.getElementById("repay-total-period");
+  if(!loansCache.length || totalBalance === 0){
+    periodEl.textContent = footEl.textContent = "갚을 대출 없음"; endEl.textContent = "-";
+  } else if(monthly <= 0){
+    periodEl.textContent = footEl.textContent = "매달 갚는 금액을 넣어주세요"; endEl.textContent = "-";
+  } else {
+    var total = Math.ceil(totalBalance / monthly);
+    periodEl.textContent = formatPeriod(total);
+    footEl.textContent = "총 " + formatPeriod(total);
+    endEl.textContent = endMonthLabel(total);
+  }
+  labelTableCells(document.getElementById("view-assets"));
+}
+document.getElementById("repay-monthly").addEventListener("input", function(){
+  repayManual = true;
+  renderRepayment();
+});
+document.getElementById("repay-reset-btn").addEventListener("click", function(){
+  repayManual = false;
+  renderRepayment();
+});
 
 function subscribeAssets(){
   otherUnsubs.push(onSnapshot(collection(db, ASSET_COL), function(snap){
@@ -3548,7 +3638,7 @@ window.addEventListener("beforeunload", function(e){
 function applyReadOnly(){
   var view = uiMode !== "edit";
   if(view){
-    document.querySelectorAll('#app-main input:not([type="checkbox"]), #app-main textarea').forEach(function(el){ el.readOnly = true; });
+    document.querySelectorAll('#app-main input:not([type="checkbox"]):not(#repay-monthly), #app-main textarea').forEach(function(el){ el.readOnly = true; });
     document.querySelectorAll("#app-main select").forEach(function(el){ el.disabled = true; });
   } else {
     // 다시 그려지지 않는 고정 입력칸(월급, 추가 입력폼 등)만 원래대로. 표 안 칸은 다시 그릴 때 새로 만들어짐

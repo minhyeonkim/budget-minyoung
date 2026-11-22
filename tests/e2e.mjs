@@ -616,6 +616,24 @@ try {
   check("대출 총 잔액 = 사용액 2,000만, 사용 가능 금액 = 1,000만",
     (await txt(p2, "#stat-loan-balance")) === "20,000,000원" && (await txt(p2, "#stat-loan-available")) === "10,000,000원" && (await txt(p2, "#stat-loan-limit")) === "30,000,000원",
     [await txt(p2, "#stat-loan-balance"), await txt(p2, "#stat-loan-available")]);
+  // 상환 기간 계산: 적금 1,000,000 → 대출 2,000만 = 20개월(1년 8개월)
+  await typeInto(p2, "#saving-name", "적금A");
+  await typeInto(p2, "#saving-amount", "1,000,000");
+  await p2.click("#add-saving-btn");
+  await p2.waitForFunction(() => document.querySelectorAll("#savings-body tr").length === 1, { timeout: 10000 });
+  await sleep(200);
+  const repay1 = await p2.evaluate(() => ({
+    monthly: document.getElementById("repay-monthly").value,
+    row: [...document.querySelectorAll("#repay-body tr td")].map((t) => t.textContent).join("|"),
+    period: document.getElementById("repay-stat-period").textContent
+  }));
+  await typeInto(p2, "#repay-monthly", "3,000,000");
+  const repay2 = await p2.evaluate(() => document.getElementById("repay-stat-period").textContent);
+  await p2.click("#repay-reset-btn");
+  const repay3 = await p2.evaluate(() => document.getElementById("repay-monthly").value);
+  check("상환 기간 계산: 매달 적금 합계(100만)로 대출 2,000만 → 1년 8개월(20개월), 금액 바꾸면 7개월, '적금 합계로' 되돌리기",
+    repay1.monthly === "1,000,000" && repay1.row.includes("1년 8개월 (20개월)") && repay1.period === "1년 8개월 (20개월)" &&
+    repay2 === "7개월 (7개월)" && repay3 === "1,000,000", { repay1, repay2, repay3 });
   const before = await countLoans();
   const invalid = [];
   for (const [limit, used] of [["30,000,000", "-5"], ["30,000,000", "1.5"], ["10,000,000", "20,000,000"], ["1,00", "0"]]) {
