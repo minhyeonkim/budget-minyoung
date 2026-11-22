@@ -1539,10 +1539,42 @@ function instCard(item){ return item.card || "cardFixedHyundai"; }
 function cardInstallments(p, listKey){
   return getInstallments(p).filter(function(x){ return instCard(x) === listKey; });
 }
+/* "이번 달부터" 변경 기록: 항목의 changes = [{from:"YYYY-MM", amount?, enabled?}]
+   보고 있는 달 이전(같은 달 포함)의 기록만 차례로 반영 → 지난 달은 예전 값 그대로 */
+function applyItemChanges(item, month){
+  if(!item || !Array.isArray(item.changes) || !item.changes.length) return item;
+  var out = Object.assign({}, item);
+  item.changes.slice().sort(function(a, b){ return a.from < b.from ? -1 : (a.from > b.from ? 1 : 0); }).forEach(function(c){
+    if(c.from <= month){
+      if(c.amount !== undefined) out.amount = c.amount;
+      if(c.enabled !== undefined) out.enabled = c.enabled;
+    }
+  });
+  delete out.changes;
+  return out;
+}
+// 이번 달부터 field 값을 바꿈 (이번 달 이후로 예정돼 있던 같은 칸 변경은 이 값으로 대체)
+function setChangeFrom(item, month, field, value){
+  var list = (item.changes || []).map(function(c){ return Object.assign({}, c); });
+  list.forEach(function(c){ if(c.from >= month) delete c[field]; });
+  var cur = list.find(function(c){ return c.from === month; });
+  if(!cur){ cur = { from: month }; list.push(cur); }
+  cur[field] = value;
+  list = list.filter(function(c){ return Object.keys(c).length > 1; }).sort(function(a, b){ return a.from < b.from ? -1 : 1; });
+  if(list.length) item.changes = list; else delete item.changes;
+}
+// 전체 적용: 기간별 기록에서 해당 칸을 지워 모든 달이 같은 값을 쓰게 함
+function clearChanges(item, field){
+  if(!Array.isArray(item.changes)) return;
+  var list = item.changes.map(function(c){ var x = Object.assign({}, c); delete x[field]; return x; })
+    .filter(function(c){ return Object.keys(c).length > 1; });
+  if(list.length) item.changes = list; else delete item.changes;
+}
+
 function computeEffectiveList(p, listKey){
   var overrides = getMonthWork(p).fixedOverrides || {};
   var list = getFixedList(p, listKey).map(function(item){
-    var merged = Object.assign({}, item, overrides[item.id] || {});
+    var merged = Object.assign({}, applyItemChanges(item, currentMonth), overrides[item.id] || {});
     var pending = pendingAmountChanges[item.id];
     if(pending && pending.listKey === listKey) merged.amount = pending.newAmount;
     return merged;
@@ -1626,7 +1658,7 @@ function setItemAmount(p, listKey, id, amount){
     oldAmount = existing.oldAmount;
   } else {
     var ov = (getMonthWork(p).fixedOverrides || {})[id];
-    oldAmount = Number((ov && ov.amount !== undefined) ? ov.amount : item.amount) || 0;
+    oldAmount = Number((ov && ov.amount !== undefined) ? ov.amount : applyItemChanges(item, currentMonth).amount) || 0;
   }
   if(amount === oldAmount){
     delete pendingAmountChanges[id];
@@ -1652,7 +1684,7 @@ function setItemEnabled(p, listKey, id, enabled){
   // 원래 상태로 되돌린 경우 서버에 있던 그대로 복원 (불필요한 미저장 표시 방지)
   var baseOv = ((base.month[p] || {}).fixedOverrides || {})[id];
   var item = findItem(p, listKey, id);
-  var baseEnabled = (baseOv && baseOv.enabled !== undefined) ? baseOv.enabled : (item ? item.enabled !== false : true);
+  var baseEnabled = (baseOv && baseOv.enabled !== undefined) ? baseOv.enabled : (item ? applyItemChanges(item, currentMonth).enabled !== false : true);
   var baseAmount = baseOv ? baseOv.amount : undefined;
   if(enabled === baseEnabled && ov.amount === baseAmount){
     if(baseOv) m.fixedOverrides[id] = clone(baseOv);
@@ -2878,7 +2910,7 @@ function effectiveEnabled(fixedDoc, monthDoc, listKey, id){
   var item = ((fixedDoc && fixedDoc[listKey]) || []).find(function(x){ return x.id === id; });
   if(!item) return null;
   var ov = ((monthDoc && monthDoc.fixedOverrides) || {})[id];
-  return (ov && ov.enabled !== undefined) ? ov.enabled !== false : item.enabled !== false;
+  return (ov && ov.enabled !== undefined) ? ov.enabled !== false : applyItemChanges(item, currentMonth).enabled !== false;
 }
 function personToggleChanges(p){
   var out = [];
@@ -2929,6 +2961,7 @@ function showScopeModal(ids, toggles, onConfirm){
   function radios(name, choice){
     return '<td><div class="scope-choices">' +
       '<label style="font-weight:400;"><input type="radio" name="' + escapeHtml(name) + '" value="all"' + (choice === "all" ? " checked" : "") + '> 전체 적용</label>' +
+      '<label style="font-weight:400;"><input type="radio" name="' + escapeHtml(name) + '" value="from"' + (choice === "from" ? " checked" : "") + '> 이번 달부터</label>' +
       '<label style="font-weight:400;"><input type="radio" name="' + escapeHtml(name) + '" value="month"' + (choice === "month" ? " checked" : "") + '> 이번 달만</label>' +
     '</div></td>';
   }
@@ -2950,6 +2983,7 @@ function showScopeModal(ids, toggles, onConfirm){
         '<td class="num">' + fmtPlain(c.oldAmount) + '<br>→ ' + fmtPlain(c.newAmount) + '</td>' +
         '<td><div class="scope-choices">' +
           '<label style="font-weight:400;"><input type="radio" name="scope-' + escapeHtml(id) + '" value="all"' + (choice === "all" ? " checked" : "") + '> 전체 적용</label>' +
+          '<label style="font-weight:400;"><input type="radio" name="scope-' + escapeHtml(id) + '" value="from"' + (choice === "from" ? " checked" : "") + '> 이번 달부터</label>' +
           '<label style="font-weight:400;"><input type="radio" name="scope-' + escapeHtml(id) + '" value="month"' + (choice === "month" ? " checked" : "") + '> 이번 달만</label>' +
         '</div></td>' +
       '</tr>'
@@ -2957,15 +2991,15 @@ function showScopeModal(ids, toggles, onConfirm){
   }).join("");
   var html =
     '<p style="margin:0 0 10px; color:var(--text-dim); font-size:13px;">바꾼 금액·체크가 ' + (ids.length + toggles.length) + '건 있어요. 항목마다 반영 범위를 골라주세요.<br>' +
-      '<strong>전체 적용</strong>: 기본값을 바꿔 다음 달에도 이어짐 · <strong>이번 달만</strong>: ' + escapeHtml(formatMonthLabel(currentMonth)) + '에만 적용</p>' +
-    '<div class="scope-bulk"><button class="icon-btn" id="scope-all-all">모두 전체 적용</button><button class="icon-btn" id="scope-all-month">모두 이번 달만</button></div>' +
+      '<strong>전체 적용</strong>: 지난 달까지 모든 달에 적용 · <strong>이번 달부터</strong>: ' + escapeHtml(formatMonthLabel(currentMonth)) + '과 그 이후 달에 적용(지난 달은 그대로) · <strong>이번 달만</strong>: ' + escapeHtml(formatMonthLabel(currentMonth)) + '에만 적용</p>' +
+    '<div class="scope-bulk"><button class="icon-btn" id="scope-all-all">모두 전체 적용</button><button class="icon-btn" id="scope-all-from">모두 이번 달부터</button><button class="icon-btn" id="scope-all-month">모두 이번 달만</button></div>' +
     '<div class="table-scroll"><table class="compact"><thead><tr><th>구분</th><th>항목</th><th class="num">변경</th><th>반영 범위</th></tr></thead><tbody>' + rowsHtml + toggleRows + '</tbody></table></div>' +
     '<div class="modal-actions">' +
       '<button class="ghost" id="confirm-save-cancel">취소</button>' +
       '<button class="primary" id="confirm-save-apply">저장</button>' +
     '</div>';
   openDynamicModal("변경사항 확인", html, null);
-  ["all", "month"].forEach(function(v){
+  ["all", "from", "month"].forEach(function(v){
     document.getElementById("scope-all-" + v).addEventListener("click", function(){
       document.querySelectorAll('#modal-body input[type="radio"][value="' + v + '"]').forEach(function(r){ r.checked = true; });
     });
@@ -2990,11 +3024,15 @@ function buildPlan(p, month){
   var fixed = clone(work.fixed[p]);
   var inst = KINDS_FOR[p].indexOf("inst") !== -1 ? clone(work.inst[p]) : null;
   monthData.fixedOverrides = monthData.fixedOverrides || {};
-  // 체크 변경 "전체 적용": 기본값의 enabled를 바꾸고 이 달의 체크 예외는 지움
+  // 체크 변경: 전체 적용 = 기본값 변경, 이번 달부터 = 이 달 이후만 변경, 이번 달만 = 이 달 예외
   personToggleChanges(p).forEach(function(t){
-    if(scopeChoices["en:" + t.id] === "month") return;
+    var scope = scopeChoices["en:" + t.id] || "all";
+    if(scope === "month") return;
     var item = (fixed[t.listKey] || []).find(function(x){ return x.id === t.id; });
-    if(item) item.enabled = t.enabled;
+    if(item){
+      if(scope === "from") setChangeFrom(item, month, "enabled", t.enabled);
+      else { item.enabled = t.enabled; clearChanges(item, "enabled"); }
+    }
     var ov = monthData.fixedOverrides[t.id];
     if(ov){
       delete ov.enabled;
@@ -3007,8 +3045,11 @@ function buildPlan(p, month){
       monthData.fixedOverrides[id] = Object.assign({}, monthData.fixedOverrides[id], { amount: c.newAmount });
     } else {
       var item = (fixed[c.listKey] || []).find(function(x){ return x.id === id; });
-      if(item) item.amount = c.newAmount;
-      // 전체 적용: 이 달의 금액 예외를 지움 (fixedOverrides 필드를 통째로 다시 쓰므로 서버에도 amount가 남지 않음)
+      if(item){
+        if(scopeChoices[id] === "from") setChangeFrom(item, month, "amount", c.newAmount); // 이번 달부터 (지난 달은 그대로)
+        else { item.amount = c.newAmount; clearChanges(item, "amount"); }                  // 전체 적용
+      }
+      // 이 달의 금액 예외는 지움 (fixedOverrides 필드를 통째로 다시 쓰므로 서버에도 amount가 남지 않음)
       var ov = monthData.fixedOverrides[id];
       if(ov){
         delete ov.amount;

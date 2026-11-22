@@ -258,6 +258,56 @@ try {
   m10 = await read("minhyun_2026-10"); fx = await read("minhyun_fixed");
   check("전체 적용: 기본값 변경 + 기존 10월 금액 예외가 서버에서 제거됨", fx.fixedGiup[0].amount === 620000 && !(m10.fixedOverrides.g1 && "amount" in m10.fixedOverrides.g1), { ov: m10.fixedOverrides, base: fx.fixedGiup[0].amount });
 
+  /* ===== 이번 달부터: 지난 달은 그대로, 이번 달·이후 달만 변경 ===== */
+  {
+    const g1Val = () => val(page, "#fixed-giup-body input.money-input");
+    await typeInto(page, "#fixed-giup-body input.money-input", "630000");
+    await page.click("#save-salary-btn");
+    const threeOpts = await page.$$eval('input[name="scope-g1"]', (rs) => rs.map((r) => r.value).join(","));
+    await page.click('input[name="scope-g1"][value="from"]');
+    await page.click("#confirm-save-apply");
+    await waitSaved(page);
+    const fxF = (await read("minhyun_fixed")).fixedGiup[0];
+    const oct = await g1Val();
+    await page.click("#month-prev-btn"); await waitReady(page, "2026-09");
+    const sep = await g1Val();
+    await page.click("#month-next-btn"); await waitReady(page, "2026-10");
+    await page.click("#month-next-btn"); await waitReady(page, "2026-11");
+    const nov = await g1Val();
+    // 체크도 이번 달부터: 11월에 해제 → 10월은 체크 그대로, 12월은 해제
+    await page.evaluate(() => document.querySelector('#fixed-nh-body tr[data-row$="|n1"] td.check-cell input').click());
+    await page.click("#save-salary-btn");
+    await page.click('input[name="scope-en-n1"][value="from"]');
+    await page.click("#confirm-save-apply");
+    await waitSaved(page);
+    const n1On = () => page.$eval('#fixed-nh-body tr[data-row$="|n1"] td.check-cell input', (e) => e.checked);
+    const nov1 = await n1On();
+    await page.click("#month-next-btn"); await waitReady(page, "2026-12");
+    const dec1 = await n1On();
+    await page.click("#month-prev-btn"); await waitReady(page, "2026-11");
+    await page.click("#month-prev-btn"); await waitReady(page, "2026-10");
+    const oct1 = await n1On();
+    const fxN = (await read("minhyun_fixed")).fixedNh[0];
+    check("이번 달부터: 10월부터 금액 변경 → 9월은 예전 금액, 10·11월은 새 금액 / 11월부터 체크 해제 → 10월은 체크, 11·12월은 해제",
+      threeOpts === "all,from,month" && fxF.amount === 620000 && fxF.changes && fxF.changes[0].from === "2026-10" && fxF.changes[0].amount === 630000 &&
+      sep === "620,000" && oct === "630,000" && nov === "630,000" &&
+      oct1 === true && nov1 === false && dec1 === false && fxN.enabled !== false && fxN.changes[0].from === "2026-11" && fxN.changes[0].enabled === false,
+      { threeOpts, fxF, sep, oct, nov, oct1, nov1, dec1, fxN });
+    // 원래대로 (전체 적용으로 되돌리면 기간별 기록도 지워짐)
+    await typeInto(page, "#fixed-giup-body input.money-input", "620000");
+    await page.click("#save-salary-btn");
+    await page.click('input[name="scope-g1"][value="all"]');
+    await page.click("#confirm-save-apply");
+    await waitSaved(page);
+    await admin((db) => getDoc(doc(db, "budget_salaryProfiles", "minhyun_fixed")).then((snap) => {
+      const d = snap.data(); d.fixedNh[0] = { id: "n1", name: "보험", day: 15, amount: 400000, enabled: true };
+      return setDoc(doc(db, "budget_salaryProfiles", "minhyun_fixed"), d);
+    }));
+    await page.waitForFunction(() => document.querySelector('#fixed-nh-body tr[data-row$="|n1"] td.check-cell input').checked, { timeout: 10000 });
+    const fxBack = (await read("minhyun_fixed")).fixedGiup[0];
+    check("전체 적용으로 다시 바꾸면 기간별 기록이 지워지고 모든 달이 같은 값", fxBack.amount === 620000 && !fxBack.changes, fxBack);
+  }
+
   /* ===== 체크(합계 포함) 변경도 전체 적용 / 이번 달만 선택 ===== */
   const clickKb = () => page.evaluate(() => document.querySelector('#card-fixed-kb-body tr[data-row$="|k1"] td.check-cell input').click());
   await clickKb();
